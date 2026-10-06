@@ -6,6 +6,9 @@ import type { Host, Snapshot } from '../types'
 const MCP = 'https://sensorium.zyx.tw/mcp'
 const REFRESH_MS = 15_000
 const WINDOW_MS = 90_000
+// Bump when Snapshot's shape changes: sessions still running an older build
+// keep writing the old shape under the old key.
+const STORE_KEY = 'snap-v2'
 const ONLINE_S = 60
 
 // PVE nodes report through PVE's own OpenTelemetry metric server, one project
@@ -88,7 +91,7 @@ async function agentHosts($: EngineInterface, token: string, now: number): Promi
 async function refresh($: EngineInterface): Promise<void> {
   const now = await $.clock.now()
   // Sessions share one fetch: a snapshot another session stored recently is reused.
-  const cached = (await $.store.get('snap')) as Snapshot | undefined
+  const cached = (await $.store.get(STORE_KEY)) as Snapshot | undefined
   if (cached && now - cached.fetchedAt < REFRESH_MS - 2_000) {
     await update($, snap, () => cached)
     return
@@ -105,16 +108,16 @@ async function refresh($: EngineInterface): Promise<void> {
       next = { fetchedAt: now, hosts: cached?.hosts ?? [], error: String((err as Error).message ?? err) }
     }
   }
-  await $.store.set('snap', next)
+  await $.store.set(STORE_KEY, next)
   await update($, snap, () => next)
 }
 
-function pct(v: number | null): string {
-  return v === null ? '–' : `${Math.round(v * 100)}%`
+function pct(v: number | null | undefined): string {
+  return v == null ? '–' : `${Math.round(v * 100)}%`
 }
 
-function level(v: number | null): string | undefined {
-  if (v === null) return undefined
+function level(v: number | null | undefined): string | undefined {
+  if (v == null) return undefined
   if (v >= 0.9) return 'red'
   if (v >= 0.75) return 'yellow'
   return undefined
