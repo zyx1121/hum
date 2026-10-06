@@ -1,0 +1,4 @@
+dist/
+plugin/.claude-plugin/types/
+package.json
+bun.lock

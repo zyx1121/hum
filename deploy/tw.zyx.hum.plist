@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- launchd agent: copy to ~/Library/LaunchAgents/, replace HOME, ENDPOINT and HOSTNAME, then
+     launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/tw.zyx.hum.plist -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>tw.zyx.hum</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>HOME/.local/bin/hum</string>
+    <string>-endpoint</string>
+    <string>ENDPOINT</string>
+    <string>-token-file</string>
+    <string>HOME/.config/hum/token</string>
+    <string>-host</string>
+    <string>HOSTNAME</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardErrorPath</key>
+  <string>HOME/Library/Logs/hum.log</string>
+</dict>
+</plist>

@@ -1,0 +1,10 @@
+{
+  "name": "hum",
+  "version": "0.1.0",
+  "description": "A band above the prompt with every machine's CPU, memory and disk, read from sensorium",
+  "types": "./types/index.d.ts",
+  "author": {
+    "name": "zyx1121",
+    "url": "https://github.com/zyx1121"
+  }
+}

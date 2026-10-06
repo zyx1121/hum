@@ -1,0 +1,17 @@
+{
+  "name": "hum",
+  "owner": {
+    "name": "zyx1121",
+    "url": "https://github.com/zyx1121"
+  },
+  "description": "Marketplace for the hum plugin: every machine's CPU, memory and disk in one line above the prompt.",
+  "plugins": [
+    {
+      "name": "hum",
+      "source": "./plugin",
+      "description": "A band above the prompt with every machine's CPU, memory and disk, read from sensorium.",
+      "category": "productivity",
+      "tags": ["monitoring", "opentelemetry", "band", "function-hooks"]
+    }
+  ]
+}

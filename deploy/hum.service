@@ -1,0 +1,20 @@
+# systemd unit: copy to /etc/systemd/system/, put the token in /etc/hum/token (0600),
+# set the endpoint, then: systemctl enable --now hum
+[Unit]
+Description=hum host metrics reporter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/hum -endpoint https://otel.example.com/v1/metrics
+Restart=always
+RestartSec=30
+DynamicUser=yes
+LoadCredential=token:/etc/hum/token
+Environment=HUM_TOKEN_FILE=%d/token
+ProtectSystem=strict
+ProtectHome=yes
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
