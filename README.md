@@ -18,12 +18,12 @@
 You own a few machines: a Proxmox host, a GPU box, a laptop, a Mac mini. Checking on them meant an ssh round per machine, or a full Prometheus stack you never got around to. hum is one small binary per machine that reports CPU, memory, disks, network and uptime to any OpenTelemetry endpoint, plus a Claude Code band that shows all of them above the prompt.
 
 ```
- 💻 cpu mem disk  ● pve 1% 73% 67%  ● carrel01 no data  ● king 4% 36% 87%  ● laptop 4% 64% 13%  ● macmini 2% 76% 98%
+ 💻 cpu mem disk gpu  ● pve 1% 73% 67% –  ● carrel01 1% 4% 14% –  ● king 4% 36% 87% 3%  ● laptop 4% 64% 13% 0%  ● macmini 2% 76% 98% 0%
 ```
 
 ## What it does
 
-- **Reports host metrics**: CPU, memory, every fixed disk, network bytes and uptime, every 15 seconds, as OTLP/HTTP JSON.
+- **Reports host metrics**: CPU, memory, every fixed disk, network bytes, uptime and GPU load, every 15 seconds, as OTLP/HTTP JSON.
 - **Stays small**: one static binary (about 7 MB, about 17 MB resident) for Linux, Windows and macOS, no SDK, no config file.
 - **Runs where binaries cannot**: on Windows with Smart App Control on, the installer falls back to `hum.ps1`, which sends the same metrics.
 - **Shows them in Claude Code**: the `hum` plugin draws one line above the prompt, with offline machines in red.
@@ -77,7 +77,7 @@ flowchart LR
   S -- MCP query_metrics --> B[Claude Code band]
 ```
 
-Each tick hum reads the host through [gopsutil](https://github.com/shirou/gopsutil) and posts one export request with OpenTelemetry semantic-convention names (`system.cpu.utilization`, `system.memory.utilization`, `system.filesystem.utilization`, `system.network.io`, `system.uptime`). Every point also carries `host.name`, so backends that drop the resource still tell machines apart. A failed post is logged once and dropped; the next tick tries again. The agent holds only an ingest token, which can write metrics and read nothing.
+Each tick hum reads the host through [gopsutil](https://github.com/shirou/gopsutil) and posts one export request with OpenTelemetry semantic-convention names (`system.cpu.utilization`, `system.memory.utilization`, `system.filesystem.utilization`, `system.network.io`, `system.uptime`, `hw.gpu.utilization`, `hw.gpu.memory.usage`). Every point also carries `host.name`, so backends that drop the resource still tell machines apart. A failed post is logged once and dropped; the next tick tries again. The agent holds only an ingest token, which can write metrics and read nothing.
 
 ## Develop
 
@@ -92,7 +92,8 @@ The plugin lives in [plugin/](plugin/): `claude plugin test plugin` runs its tes
 ## Limitations
 
 - No buffering: metrics from while the endpoint is down are lost.
-- No GPU, temperature or battery metrics yet.
+- GPUs: NVIDIA through `nvidia-smi`, Apple silicon through `ioreg`, any vendor through Windows performance counters in `hum.ps1`. `hum.exe` does not read non-NVIDIA GPUs on Windows.
+- No temperature or battery metrics yet.
 - The macOS agent runs while its user is logged in (a LaunchAgent); a LaunchDaemon needs root.
 - The band's machine list is in code, not settings.
 

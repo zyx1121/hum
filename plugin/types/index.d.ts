@@ -5,6 +5,8 @@ export type Host = {
   cpu: number | null
   mem: number | null
   disk: number | null
+  /** Busiest GPU, 0..1; null on machines without one. */
+  gpu: number | null
 }
 
 export type Snapshot = { fetchedAt: number; hosts: Host[]; error: string | null }

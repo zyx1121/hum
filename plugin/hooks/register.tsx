@@ -58,15 +58,17 @@ async function pveHost($: EngineInterface, token: string, now: number, name: str
     cpu: cpu[0]?.value ?? null,
     mem: used[0] && total[0]?.value ? used[0].value / total[0].value : null,
     disk: disk[0] ? disk[0].value / 100 : null,
+    gpu: null,
   }
 }
 
 async function agentHosts($: EngineInterface, token: string, now: number): Promise<Host[]> {
   const limit = AGENTS.length * 16
-  const [cpu, mem, fs] = await Promise.all([
+  const [cpu, mem, fs, gpu] = await Promise.all([
     query($, token, 'devices', 'system.cpu.utilization', limit),
     query($, token, 'devices', 'system.memory.utilization', limit),
     query($, token, 'devices', 'system.filesystem.utilization', limit),
+    query($, token, 'devices', 'hw.gpu.utilization', limit),
   ])
   // Points come newest first, so the first one per host is its latest reading.
   const latest = (points: Point[], host: string) => points.find(p => p.attributes['host.name'] === host)
@@ -78,6 +80,7 @@ async function agentHosts($: EngineInterface, token: string, now: number): Promi
       cpu: latest(cpu, name)?.value ?? null,
       mem: latest(mem, name)?.value ?? null,
       disk: disks.length ? Math.max(...disks) : null,
+      gpu: latest(gpu, name)?.value ?? null,
     }
   })
 }
@@ -132,7 +135,7 @@ export const register: Register = on => {
     const { Box, Text } = $.ui.resolve(e)
     const mine = (
       <Box paddingX={1} flexDirection="row" flexWrap="wrap" columnGap={2}>
-        <Text dimColor>💻 cpu mem disk</Text>
+        <Text dimColor>💻 cpu mem disk gpu</Text>
         {s.hosts.map(host => {
           const online = host.ageS !== null && host.ageS <= ONLINE_S
           return (
@@ -143,7 +146,8 @@ export const register: Register = on => {
                 <Text>
                   <Text color={level(host.cpu)}>{pct(host.cpu)}</Text>{' '}
                   <Text color={level(host.mem)}>{pct(host.mem)}</Text>{' '}
-                  <Text color={level(host.disk)}>{pct(host.disk)}</Text>
+                  <Text color={level(host.disk)}>{pct(host.disk)}</Text>{' '}
+                  <Text color={level(host.gpu)}>{pct(host.gpu)}</Text>
                 </Text>
               ) : (
                 <Text dimColor>{host.ageS === null ? 'no data' : `${Math.round(host.ageS / 60)}m ago`}</Text>

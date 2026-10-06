@@ -104,3 +104,21 @@ func mustJSON(t *testing.T, v any) []byte {
 	}
 	return b
 }
+
+func TestParseNvidia(t *testing.T) {
+	g := parseNvidia("0, NVIDIA GeForce RTX 3080, 4, 6712, 10240\n1, Tesla T4, [N/A], 1, 2\n")
+	if len(g) != 1 || g[0].id != "gpu0" || g[0].name != "NVIDIA GeForce RTX 3080" || g[0].util != 0.04 || g[0].limit != 10240*mib {
+		t.Fatalf("got %+v", g)
+	}
+}
+
+func TestParseIoreg(t *testing.T) {
+	out := `"PerformanceStatistics" = {"In use system memory"=20332544,"Device Utilization %"=37,"Alloc system memory"=4318953472}`
+	g := parseIoreg(out)
+	if len(g) != 1 || g[0].util != 0.37 || g[0].used != 20332544 || g[0].limit != 0 {
+		t.Fatalf("got %+v", g)
+	}
+	if parseIoreg("nothing here") != nil {
+		t.Fatal("no statistics should mean no GPU")
+	}
+}
