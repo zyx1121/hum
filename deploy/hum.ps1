@@ -9,7 +9,7 @@ param(
 )
 $ErrorActionPreference = "Stop"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-$version = "0.1.0-ps"
+$version = "0.2.0-ps"
 $token = (Get-Content -Raw $TokenFile).Trim()
 $log = Join-Path (Split-Path $TokenFile) "hum.log"
 
@@ -59,6 +59,23 @@ function Snapshot {
   Counter "system.network.io" "By" $tx (Str "network.io.direction" "transmit")
 
   Gauge "system.uptime" "s" ([int]((Get-Date) - $os.LastBootUpTime).TotalSeconds) $null
+
+  # GPU load the way Task Manager counts it: per engine type, the sum over
+  # engines, then the busiest type. Works for any vendor's WDDM driver.
+  $engines = Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine -ErrorAction SilentlyContinue
+  if ($engines) {
+    $byType = @{}
+    foreach ($e in $engines) {
+      if ($e.Name -match "engtype_(.+)$") { $byType[$Matches[1]] += [double]$e.UtilizationPercentage }
+    }
+    $busiest = ($byType.Values | Measure-Object -Maximum).Maximum
+    $mem = Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUAdapterMemory -ErrorAction SilentlyContinue |
+      Measure-Object -Property DedicatedUsage, SharedUsage -Sum
+    $name = (Get-CimInstance Win32_VideoController | Select-Object -First 1).Name
+    $at = @((Str "hw.id" "gpu0"), (Str "hw.name" $name), (Str "hw.vendor" "windows"))
+    Gauge "hw.gpu.utilization" "1" ([Math]::Min(100, $busiest) / 100) $at
+    Gauge "hw.gpu.memory.usage" "By" (($mem | Measure-Object -Property Sum -Sum).Sum) $at
+  }
 
   @{ resourceMetrics = @(@{
     resource = @{ attributes = @(

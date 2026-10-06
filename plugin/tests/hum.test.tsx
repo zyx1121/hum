@@ -23,6 +23,7 @@ function series(project: string, metric: string) {
     return [point(5, v[metric] ?? 0)]
   }
   if (project === 'devices') {
+    if (metric === 'hw.gpu.utilization') return [point(3, 0.42, 'king')]
     const v = metric === 'system.filesystem.utilization' ? 0.95 : 0.2
     return [point(3, v, 'king'), point(4, v, 'macmini'), point(300, v, 'laptop')]
   }
@@ -55,6 +56,7 @@ test('the band shows each machine, its load and who is offline', async ($, on) =
     expect(all).toContain('75%') // pve memory 48/64
     expect(all).toContain('67%') // pve disk
     expect(all).toContain('95%') // king disk, highlighted
+    expect(all).toContain('42%') // king gpu
     expect(all).toContain('5m ago') // laptop
     expect(all).toContain('no data') // carrel01
     await ui.unmount()
@@ -63,7 +65,7 @@ test('the band shows each machine, its load and who is offline', async ($, on) =
 
 test('a second session within the refresh window reuses the stored snapshot', async ($, on) => {
   mock.env(on, { SENSORIUM_ZYX_TOKEN: 'sk_test' })
-  mock.store(on, { snap: { fetchedAt: NOW - 1000, hosts: [{ name: 'king', ageS: 1, cpu: 0.1, mem: 0.2, disk: 0.3 }], error: null } })
+  mock.store(on, { snap: { fetchedAt: NOW - 1000, hosts: [{ name: 'king', ageS: 1, cpu: 0.1, mem: 0.2, disk: 0.3, gpu: null }], error: null } })
   const clock = mock.clock(on, { now: NOW })
   let fetches = 0
   on('http.fetch', async () => {

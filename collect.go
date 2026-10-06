@@ -52,6 +52,8 @@ func collect(b *batch) {
 	if up, err := host.Uptime(); err == nil {
 		b.gauge("system.uptime", "s", float64(up))
 	}
+
+	collectGPU(b)
 }
 
 // mountpoints returns the filesystems worth reporting: fixed local disks only.
