@@ -131,8 +131,8 @@ export const register: Register = on => {
 
     const { Box, Text } = $.ui.resolve(e)
     const mine = (
-      <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
-        <Text dimColor>cpu mem disk</Text>
+      <Box paddingX={1} flexDirection="row" flexWrap="wrap" columnGap={2}>
+        <Text dimColor>💻 cpu mem disk</Text>
         {s.hosts.map(host => {
           const online = host.ageS !== null && host.ageS <= ONLINE_S
           return (
