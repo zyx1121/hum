@@ -18,7 +18,7 @@
 You own a few machines: a Proxmox host, a GPU box, a laptop, a Mac mini. Checking on them meant an ssh round per machine, or a full Prometheus stack you never got around to. hum is one small binary per machine that reports CPU, memory, disks, network and uptime to any OpenTelemetry endpoint, plus a Claude Code band that shows all of them above the prompt.
 
 ```
-cpu mem disk  ● pve 1% 73% 67%  ● carrel01 no data  ● king 4% 36% 87%  ● laptop 4% 64% 13%  ● macmini 2% 76% 98%
+ 💻 cpu mem disk  ● pve 1% 73% 67%  ● carrel01 no data  ● king 4% 36% 87%  ● laptop 4% 64% 13%  ● macmini 2% 76% 98%
 ```
 
 ## What it does
