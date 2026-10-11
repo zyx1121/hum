@@ -16,7 +16,7 @@
  💻 cpu mem disk gpu  ● spawner 1% 73% 67% –  ● carrel01 1% 4% 14% –  ● furnace 4% 36% 87% 3%  ● laptop 4% 64% 13% 0%  ● macmini 2% 76% 98% 0%
 ```
 
-Checking a few machines used to mean an ssh round each, or a Prometheus stack that you never had time to build. hum is one binary per machine that reports to any OpenTelemetry endpoint, and a Claude Code band that shows every machine in one line.
+Looking at a few machines used to mean an ssh round each, or a Prometheus stack that you never had time to build. hum is one binary per machine that reports to any OpenTelemetry endpoint, and a Claude Code band that shows every machine in one line.
 
 ## Features
 
@@ -82,23 +82,17 @@ Each tick, hum reads the host through [gopsutil](https://github.com/shirou/gopsu
 
 ## For AI agents
 
-Structured facts for coding agents and LLM tools.
+Facts for coding agents and LLM tools.
 
-```yaml
-name: hum
-summary: Host metrics agent posting OTLP/HTTP JSON every 15 s, plus a Claude Code band that reads them back through sensorium's MCP endpoint.
-type: cli
-interfaces:
-  cli: hum
-  mcp: none (the band is an MCP client of sensorium's query_metrics)
-  http: none (hum is a client of an OTLP/HTTP endpoint)
-install: download hum-<os>-<arch> from https://github.com/zyx1121/hum/releases/latest
-run: hum -endpoint https://<backend>/v1/metrics -token-file <path>
-verify: hum -once
-config: [HUM_ENDPOINT, HUM_TOKEN_FILE, HUM_HOST, SENSORIUM_ZYX_TOKEN]
-secrets: [ingest token in the file given to -token-file, SENSORIUM_ZYX_TOKEN for the band]
-limits: [no buffering, a failed post is dropped and the next tick retries, the band's machine list is hard-coded in plugin/hooks/register.tsx]
-```
+- **Summary**: Host metrics agent that posts OTLP/HTTP JSON every 15 seconds, plus a Claude Code band that shows the metrics from sensorium.
+- **Type**: cli
+- **Interfaces**: CLI `hum`. hum is an OTLP/HTTP client, not a server. The band is an MCP client of sensorium (`query_metrics`).
+- **Install**: download `hum-<os>-<arch>` from https://github.com/zyx1121/hum/releases/latest
+- **Run**: `hum -endpoint https://<backend>/v1/metrics -token-file <path>`
+- **Verify**: `hum -once`
+- **Config**: `HUM_ENDPOINT`, `HUM_TOKEN_FILE`, `HUM_HOST`, and `SENSORIUM_ZYX_TOKEN` for the band
+- **Secrets**: the ingest token in the file given to `-token-file`, and `SENSORIUM_ZYX_TOKEN` for the band
+- **Limits**: hum does not buffer. It drops a failed post, and the next tick tries again. The machine list of the band is hard-coded in `plugin/hooks/register.tsx`.
 
 ## Development
 
