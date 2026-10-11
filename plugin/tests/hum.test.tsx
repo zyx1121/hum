@@ -60,7 +60,9 @@ test('the band shows each machine, its load and who is offline', async ($, on) =
     expect(all).toContain('75%') // spawner memory 48/64
     expect(all).toContain('67%') // spawner disk
     expect(all).toContain('95%') // furnace disk, highlighted
-    expect(all).toContain('42%') // furnace gpu
+    expect(all).toContain('\u{F08AE} 42%') // furnace gpu
+    expect(all.includes('cpu mem disk gpu')).toBe(false)
+    expect(all.includes('–')).toBe(false) // spawner has no gpu
     expect(all).toContain('5m ago') // carrel01
     expect(all.includes('laptop')).toBe(false)
     expect(all.includes('macmini')).toBe(false)
