@@ -1,72 +1,73 @@
-```
-██╗  ██╗██╗   ██╗███╗   ███╗
-██║  ██║██║   ██║████╗ ████║
-███████║██║   ██║██╔████╔██║
-██╔══██║██║   ██║██║╚██╔╝██║
-██║  ██║╚██████╔╝██║ ╚═╝ ██║
-╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚═╝
-```
+<div align="center">
 
-# hum
+<h1>hum</h1>
 
-> Every machine's hum, in one line: a 7 MB agent that speaks OTLP, and a Claude Code band that reads it back.
+<p><strong>Host metrics from a 7 MB agent over OTLP, shown above your Claude Code prompt.</strong></p>
 
-`opentelemetry` · `otlp` · `host-metrics` · `claude-code`
+[![CI](https://img.shields.io/github/actions/workflow/status/zyx1121/hum/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/zyx1121/hum/actions)
+[![Release](https://img.shields.io/github/v/release/zyx1121/hum?style=flat-square&sort=semver)](https://github.com/zyx1121/hum/releases)
+[![License](https://img.shields.io/github/license/zyx1121/hum?style=flat-square)](LICENSE)
 
-[![CI](https://github.com/zyx1121/hum/actions/workflows/ci.yml/badge.svg)](https://github.com/zyx1121/hum/actions) &nbsp;[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](#license)
+**English** | [繁體中文](README.zh-TW.md) | [简体中文](README.zh-CN.md)
 
-You own a few machines: a Proxmox host, a GPU box, a laptop, a Mac mini. Checking on them meant an ssh round per machine, or a full Prometheus stack you never got around to. hum is one small binary per machine that reports CPU, memory, disks, network and uptime to any OpenTelemetry endpoint, plus a Claude Code band that shows all of them above the prompt.
+</div>
 
 ```
  💻 cpu mem disk gpu  ● spawner 1% 73% 67% –  ● carrel01 1% 4% 14% –  ● furnace 4% 36% 87% 3%  ● laptop 4% 64% 13% 0%  ● macmini 2% 76% 98% 0%
 ```
 
-## What it does
+Checking a few machines used to mean an ssh round each, or a Prometheus stack that you never had time to build. hum is one binary per machine that reports to any OpenTelemetry endpoint, and a Claude Code band that shows every machine in one line.
 
-- **Reports host metrics**: CPU, memory, every fixed disk, network bytes, uptime and GPU load, every 15 seconds, as OTLP/HTTP JSON.
-- **Stays small**: one static binary (about 7 MB, about 17 MB resident) for Linux, Windows and macOS, no SDK, no config file.
-- **Runs where binaries cannot**: on Windows with Smart App Control on, the installer falls back to `hum.ps1`, which sends the same metrics.
-- **Shows them in Claude Code**: the `hum` plugin draws one line above the prompt, with offline machines in red.
+## Features
 
-## Deploy
+- **Reports host metrics**: CPU, memory, every fixed disk, network bytes, uptime and GPU load every 15 seconds, as OTLP/HTTP JSON.
+- **Stays small**: one static binary (7 MB on disk, 17 MB resident) for Linux, Windows and macOS, with no SDK and no config file.
+- **Runs where binaries cannot**: with Windows Smart App Control on, the installer uses `hum.ps1` instead, which sends the same metrics.
+- **Shows them in Claude Code**: the `hum` plugin draws one line above the prompt, offline machines in red.
 
-hum is an agent, not a server, so it ships as binaries instead of an image. Download the one for your machine from [Releases](https://github.com/zyx1121/hum/releases), then:
-
-| OS | Runs as | How |
-|----|---------|-----|
-| Linux | systemd service | copy [deploy/hum.service](deploy/hum.service) to `/etc/systemd/system/`, put the token in `/etc/hum/token`, `systemctl enable --now hum` |
-| macOS | launchd agent | copy [deploy/tw.zyx.hum.plist](deploy/tw.zyx.hum.plist) to `~/Library/LaunchAgents/`, fill in the placeholders, `launchctl bootstrap gui/$(id -u) <plist>` |
-| Windows | service, or a startup task under Smart App Control | put `hum.exe`, `hum.ps1` and a `token` file next to [deploy/install-windows.ps1](deploy/install-windows.ps1) and run it as Administrator |
-
-> [!IMPORTANT]
-> The token file is the only secret. Keep it readable by the agent alone: the Windows installer limits it to SYSTEM and Administrators, the systemd unit passes it as a credential to a dynamic user.
-
-Proxmox VE 9.1 and later can skip the agent: its built-in OpenTelemetry metric server (`pvesh create /cluster/metrics/server/<id> --type opentelemetry`) reports the node and every guest.
-
-## Use
-
-1. Create an ingest token on your OTLP backend. With [sensorium](https://github.com/zyx1121/sensorium): `docker compose run --rm ingest register-project devices`.
-2. Install the agent on each machine with that token and `-endpoint https://<backend>/v1/metrics`.
-3. Check one snapshot without sending anything: `hum -once`.
-
-For the Claude Code band:
+## Quick start
 
 ```sh
-/plugin marketplace add zyx1121/hum
-/plugin install hum@hum
+curl -fsSL -o hum https://github.com/zyx1121/hum/releases/latest/download/hum-darwin-arm64
+chmod +x hum && ./hum -once
 ```
 
-The band reads sensorium's MCP endpoint with the token in `SENSORIUM_ZYX_TOKEN`, and needs function hooks on (`CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`). The machine list is at the top of [plugin/hooks/register.tsx](plugin/hooks/register.tsx).
+You should see one OTLP JSON payload with this machine's metrics. In this mode, hum sends nothing. Builds for Linux, Windows and Intel Macs are on [Releases](https://github.com/zyx1121/hum/releases).
 
-## Configure
+## Usage
 
-| Flag | Env | What it sets | Default |
-|------|-----|--------------|---------|
+1. Create an ingest token on your OTLP backend. With [sensorium](https://github.com/zyx1121/sensorium): `docker compose run --rm ingest register-project devices`.
+2. Install the agent on each machine with that token and `-endpoint https://<backend>/v1/metrics`:
+
+   | OS | Runs as | How |
+   |----|---------|-----|
+   | Linux | systemd service | copy [deploy/hum.service](deploy/hum.service) to `/etc/systemd/system/`, put the token in `/etc/hum/token`, `systemctl enable --now hum` |
+   | macOS | `launchd` agent | copy [deploy/tw.zyx.hum.plist](deploy/tw.zyx.hum.plist) to `~/Library/LaunchAgents/`, replace the placeholders, `launchctl bootstrap gui/$(id -u) <plist>` |
+   | Windows | service, or a startup task under Smart App Control | put `hum.exe`, `hum.ps1` and a `token` file next to [deploy/install-windows.ps1](deploy/install-windows.ps1) and run it as Administrator |
+
+3. Add the band to Claude Code:
+
+   ```sh
+   /plugin marketplace add zyx1121/hum
+   /plugin install hum@hum
+   ```
+
+   It reads sensorium's MCP endpoint with the token in `SENSORIUM_ZYX_TOKEN` and needs `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`.
+
+> [!IMPORTANT]
+> The token file is the only secret. The Windows installer limits it to SYSTEM and Administrators. The systemd unit gives it to a dynamic user as a credential.
+
+Proxmox VE 9.1 and later can skip the agent: its built-in OpenTelemetry metric server reports the node and every guest.
+
+## Configuration
+
+| Flag | Env | Sets | Default |
+|------|-----|------|---------|
 | `-endpoint` | `HUM_ENDPOINT` | OTLP/HTTP metrics URL | required |
 | `-token-file` | `HUM_TOKEN_FILE` | file holding the bearer token | none |
 | `-host` | `HUM_HOST` | `host.name` to report | OS hostname, lowercased |
 | `-interval` | | time between reports | `15s` |
-| `-once` | | print one payload to stdout and exit | off |
+| `-once` | | print one payload and exit | off |
 
 ## How it works
 
@@ -77,26 +78,38 @@ flowchart LR
   S -- MCP query_metrics --> B[Claude Code band]
 ```
 
-Each tick hum reads the host through [gopsutil](https://github.com/shirou/gopsutil) and posts one export request with OpenTelemetry semantic-convention names (`system.cpu.utilization`, `system.memory.utilization`, `system.filesystem.utilization`, `system.network.io`, `system.uptime`, `hw.gpu.utilization`, `hw.gpu.memory.usage`). Every point also carries `host.name`, so backends that drop the resource still tell machines apart. A failed post is logged once and dropped; the next tick tries again. The agent holds only an ingest token, which can write metrics and read nothing.
+Each tick, hum reads the host through [gopsutil](https://github.com/shirou/gopsutil) and posts one export request using OpenTelemetry semantic-convention names. Every point carries `host.name`, so a backend that drops the resource can still identify each machine. The agent holds only an ingest token, which can write metrics and read nothing.
 
-## Develop
+## For AI agents
 
-```sh
-go test ./...
-go run . -once
-GOOS=windows GOARCH=amd64 go build -o dist/hum.exe .
+Structured facts for coding agents and LLM tools.
+
+```yaml
+name: hum
+summary: Host metrics agent posting OTLP/HTTP JSON every 15 s, plus a Claude Code band that reads them back through sensorium's MCP endpoint.
+type: cli
+interfaces:
+  cli: hum
+  mcp: none (the band is an MCP client of sensorium's query_metrics)
+  http: none (hum is a client of an OTLP/HTTP endpoint)
+install: download hum-<os>-<arch> from https://github.com/zyx1121/hum/releases/latest
+run: hum -endpoint https://<backend>/v1/metrics -token-file <path>
+verify: hum -once
+config: [HUM_ENDPOINT, HUM_TOKEN_FILE, HUM_HOST, SENSORIUM_ZYX_TOKEN]
+secrets: [ingest token in the file given to -token-file, SENSORIUM_ZYX_TOKEN for the band]
+limits: [no buffering, a failed post is dropped and the next tick retries, the band's machine list is hard-coded in plugin/hooks/register.tsx]
 ```
 
-The plugin lives in [plugin/](plugin/): `claude plugin test plugin` runs its tests. CI runs `go vet`, the tests, and cross-builds every target; a `v*` tag publishes the binaries to a release.
+## Development
 
-## Limitations
+```sh
+git clone https://github.com/zyx1121/hum && cd hum
+go test ./... && go build -o hum .
+CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test plugin
+```
 
-- No buffering: metrics from while the endpoint is down are lost.
-- GPUs: NVIDIA through `nvidia-smi`, Apple silicon through `ioreg`, any vendor through Windows performance counters in `hum.ps1`. `hum.exe` does not read non-NVIDIA GPUs on Windows.
-- No temperature or battery metrics yet.
-- The macOS agent runs while its user is logged in (a LaunchAgent); a LaunchDaemon needs root.
-- The band's machine list is in code, not settings.
+CI runs `go vet` for Linux and Windows, `go test`, and builds all five targets. A `v*` tag publishes them as a release.
 
 ## License
 
-MIT
+[MIT](LICENSE)
