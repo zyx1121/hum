@@ -62,6 +62,7 @@ test('the band shows each machine, its load and who is offline', async ($, on) =
     expect(all).toContain('95%') // furnace disk, highlighted
     expect(all).toContain('\u{F08AE} 42%') // furnace gpu
     expect(all.includes('cpu mem disk gpu')).toBe(false)
+    expect(all.startsWith('💻')).toBe(true) // leads like the other mods' bands
     expect(all.includes('–')).toBe(false) // spawner has no gpu
     expect(all).toContain('5m ago') // carrel01
     expect(all.includes('laptop')).toBe(false)

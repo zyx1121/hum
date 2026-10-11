@@ -150,6 +150,7 @@ export const register: Register = on => {
     const { Box, Text } = $.ui.resolve(e)
     const mine = (
       <Box paddingX={1} flexDirection="row" flexWrap="wrap" columnGap={2}>
+        <Text>💻</Text>
         {s.hosts.map(host => {
           const online = host.ageS !== null && host.ageS <= ONLINE_S
           return (

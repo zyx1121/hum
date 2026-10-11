@@ -13,7 +13,7 @@
 </div>
 
 ```
- ● spawner 󰻠 1% 󰍛 73% 󰋊 67%  ● furnace 󰻠 4% 󰍛 36% 󰋊 87% 󰢮 3%  ● carrel01 󰻠 1% 󰍛 4% 󰋊 14%
+ 💻  ● spawner 󰻠 1% 󰍛 73% 󰋊 67%  ● furnace 󰻠 4% 󰍛 36% 󰋊 87% 󰢮 3%  ● carrel01 󰻠 1% 󰍛 4% 󰋊 14%
 ```
 
 Looking at a few machines used to mean an ssh round each, or a Prometheus stack that you never had time to build. hum is one binary per machine that reports to any OpenTelemetry endpoint, and a Claude Code band that shows every machine in one line.
