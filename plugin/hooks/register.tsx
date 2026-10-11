@@ -120,9 +120,13 @@ async function refresh($: EngineInterface): Promise<void> {
   await update($, snap, () => next)
 }
 
-function pct(v: number | null | undefined): string {
-  return v == null ? '–' : `${Math.round(v * 100)}%`
-}
+// Nerd Font glyphs: nf-md-cpu_64_bit, nf-md-memory, nf-md-harddisk, nf-md-expansion_card.
+const METRICS = [
+  { key: 'cpu', icon: '\u{F0EE0}' },
+  { key: 'mem', icon: '\u{F035B}' },
+  { key: 'disk', icon: '\u{F02CA}' },
+  { key: 'gpu', icon: '\u{F08AE}' },
+] as const
 
 function level(v: number | null | undefined): string | undefined {
   if (v == null) return undefined
@@ -146,7 +150,6 @@ export const register: Register = on => {
     const { Box, Text } = $.ui.resolve(e)
     const mine = (
       <Box paddingX={1} flexDirection="row" flexWrap="wrap" columnGap={2}>
-        <Text dimColor>💻 cpu mem disk gpu</Text>
         {s.hosts.map(host => {
           const online = host.ageS !== null && host.ageS <= ONLINE_S
           return (
@@ -155,10 +158,13 @@ export const register: Register = on => {
               <Text dimColor={!online}>{host.name} </Text>
               {online ? (
                 <Text>
-                  <Text color={level(host.cpu)}>{pct(host.cpu)}</Text>{' '}
-                  <Text color={level(host.mem)}>{pct(host.mem)}</Text>{' '}
-                  <Text color={level(host.disk)}>{pct(host.disk)}</Text>{' '}
-                  <Text color={level(host.gpu)}>{pct(host.gpu)}</Text>
+                  {/* A metric the host does not report (no GPU) is left out. */}
+                  {METRICS.filter(m => host[m.key] != null).map((m, i) => (
+                    <Text key={m.key} color={level(host[m.key])}>
+                      {i ? ' ' : ''}
+                      {m.icon} {Math.round(host[m.key]! * 100)}%
+                    </Text>
+                  ))}
                 </Text>
               ) : (
                 <Text dimColor>{host.ageS === null ? 'no data' : `${Math.round(host.ageS / 60)}m ago`}</Text>
