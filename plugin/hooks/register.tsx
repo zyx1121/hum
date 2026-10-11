@@ -13,8 +13,12 @@ const ONLINE_S = 60
 
 // PVE nodes report through PVE's own OpenTelemetry metric server, one project
 // per node; the other machines run the hum agent into the shared `devices` project.
-const PVE_NODES = ['pve', 'carrel01']
-const AGENTS = ['king', 'laptop', 'macmini']
+// The project is named after the PVE node; `name` is what the band shows.
+const PVE_NODES = [
+  { project: 'pve', name: 'spawner' },
+  { project: 'carrel01', name: 'carrel01' },
+]
+const AGENTS = ['furnace', 'laptop', 'macmini']
 
 const snap = atom({ plugin: 'hum', key: 'snap' } as const, null)
 
@@ -48,12 +52,12 @@ function age(now: number, p: Point | undefined): number | null {
   return p ? Math.max(0, Math.round((now - Date.parse(p.ts)) / 1000)) : null
 }
 
-async function pveHost($: EngineInterface, token: string, now: number, name: string): Promise<Host> {
+async function pveHost($: EngineInterface, token: string, now: number, project: string, name: string): Promise<Host> {
   const [cpu, used, total, disk] = await Promise.all([
-    query($, token, name, 'proxmox_node_cpustat_cpu', 1),
-    query($, token, name, 'proxmox_node_memory_memused', 1),
-    query($, token, name, 'proxmox_node_memory_memtotal', 1),
-    query($, token, name, 'proxmox_node_blockstat_per', 1),
+    query($, token, project, 'proxmox_node_cpustat_cpu', 1),
+    query($, token, project, 'proxmox_node_memory_memused', 1),
+    query($, token, project, 'proxmox_node_memory_memtotal', 1),
+    query($, token, project, 'proxmox_node_blockstat_per', 1),
   ])
   return {
     name,
@@ -102,7 +106,7 @@ async function refresh($: EngineInterface): Promise<void> {
     next = { fetchedAt: now, hosts: [], error: 'SENSORIUM_ZYX_TOKEN is not set' }
   } else {
     try {
-      const pve = await Promise.all(PVE_NODES.map(n => pveHost($, token, now, n)))
+      const pve = await Promise.all(PVE_NODES.map(n => pveHost($, token, now, n.project, n.name)))
       next = { fetchedAt: now, hosts: [...pve, ...(await agentHosts($, token, now))], error: null }
     } catch (err) {
       next = { fetchedAt: now, hosts: cached?.hosts ?? [], error: String((err as Error).message ?? err) }

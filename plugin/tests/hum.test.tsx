@@ -11,7 +11,7 @@ function point(agoS: number, value: number, host?: string) {
 }
 
 // Answers what sensorium's query_metrics would: pve fresh, carrel01 unknown,
-// king and macmini fresh, laptop last heard from 5 minutes ago.
+// furnace and macmini fresh, laptop last heard from 5 minutes ago.
 function series(project: string, metric: string) {
   if (project === 'pve') {
     const v: Record<string, number> = {
@@ -23,9 +23,9 @@ function series(project: string, metric: string) {
     return [point(5, v[metric] ?? 0)]
   }
   if (project === 'devices') {
-    if (metric === 'hw.gpu.utilization') return [point(3, 0.42, 'king')]
+    if (metric === 'hw.gpu.utilization') return [point(3, 0.42, 'furnace')]
     const v = metric === 'system.filesystem.utilization' ? 0.95 : 0.2
-    return [point(3, v, 'king'), point(4, v, 'macmini'), point(300, v, 'laptop')]
+    return [point(3, v, 'furnace'), point(4, v, 'macmini'), point(300, v, 'laptop')]
   }
   return []
 }
@@ -52,11 +52,11 @@ test('the band shows each machine, its load and who is offline', async ($, on) =
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ plugin: 'hum', surface, ...BAND })
     const all = (await ui.findAll({ type: 'Text' })).map(t => t.text).join(' ')
-    expect(all).toContain('pve')
-    expect(all).toContain('75%') // pve memory 48/64
-    expect(all).toContain('67%') // pve disk
-    expect(all).toContain('95%') // king disk, highlighted
-    expect(all).toContain('42%') // king gpu
+    expect(all).toContain('spawner')
+    expect(all).toContain('75%') // spawner memory 48/64
+    expect(all).toContain('67%') // spawner disk
+    expect(all).toContain('95%') // furnace disk, highlighted
+    expect(all).toContain('42%') // furnace gpu
     expect(all).toContain('5m ago') // laptop
     expect(all).toContain('no data') // carrel01
     await ui.unmount()
@@ -65,7 +65,7 @@ test('the band shows each machine, its load and who is offline', async ($, on) =
 
 test('a second session within the refresh window reuses the stored snapshot', async ($, on) => {
   mock.env(on, { SENSORIUM_ZYX_TOKEN: 'sk_test' })
-  mock.store(on, { 'snap-v2': { fetchedAt: NOW - 1000, hosts: [{ name: 'king', ageS: 1, cpu: 0.1, mem: 0.2, disk: 0.3, gpu: null }], error: null } })
+  mock.store(on, { 'snap-v2': { fetchedAt: NOW - 1000, hosts: [{ name: 'furnace', ageS: 1, cpu: 0.1, mem: 0.2, disk: 0.3, gpu: null }], error: null } })
   const clock = mock.clock(on, { now: NOW })
   let fetches = 0
   on('http.fetch', async () => {
@@ -79,7 +79,7 @@ test('a second session within the refresh window reuses the stored snapshot', as
   await clock.settle()
   expect(fetches).toBe(0)
   const ui = await $.ui.mount({ plugin: 'hum', surface: 'terminal', ...BAND })
-  expect((await ui.findAll({ type: 'Text' })).map(t => t.text).join(' ')).toContain('king')
+  expect((await ui.findAll({ type: 'Text' })).map(t => t.text).join(' ')).toContain('furnace')
 })
 
 test('without a token the band says so instead of fetching', async ($, on) => {
