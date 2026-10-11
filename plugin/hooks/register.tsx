@@ -8,7 +8,7 @@ const REFRESH_MS = 15_000
 const WINDOW_MS = 90_000
 // Bump when Snapshot's shape or the host list changes: sessions still running
 // an older build keep writing the old snapshot under the old key.
-const STORE_KEY = 'snap-v3'
+const STORE_KEY = 'snap-v4'
 const ONLINE_S = 60
 
 // PVE nodes report through PVE's own OpenTelemetry metric server, one project
@@ -19,6 +19,8 @@ const PVE_NODES = [
   { project: 'carrel01', name: 'carrel01' },
 ]
 const AGENTS = ['furnace']
+// Band order, left to right.
+const ORDER = ['spawner', 'furnace', 'carrel01']
 
 const snap = atom({ plugin: 'hum', key: 'snap' } as const, null)
 
@@ -107,7 +109,9 @@ async function refresh($: EngineInterface): Promise<void> {
   } else {
     try {
       const pve = await Promise.all(PVE_NODES.map(n => pveHost($, token, now, n.project, n.name)))
-      next = { fetchedAt: now, hosts: [...pve, ...(await agentHosts($, token, now))], error: null }
+      const hosts = [...pve, ...(await agentHosts($, token, now))]
+      hosts.sort((a, b) => ORDER.indexOf(a.name) - ORDER.indexOf(b.name))
+      next = { fetchedAt: now, hosts, error: null }
     } catch (err) {
       next = { fetchedAt: now, hosts: cached?.hosts ?? [], error: String((err as Error).message ?? err) }
     }
