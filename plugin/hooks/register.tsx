@@ -6,9 +6,9 @@ import type { Host, Snapshot } from '../types'
 const MCP = 'https://sensorium.zyx.tw/mcp'
 const REFRESH_MS = 15_000
 const WINDOW_MS = 90_000
-// Bump when Snapshot's shape changes: sessions still running an older build
-// keep writing the old shape under the old key.
-const STORE_KEY = 'snap-v2'
+// Bump when Snapshot's shape or the host list changes: sessions still running
+// an older build keep writing the old snapshot under the old key.
+const STORE_KEY = 'snap-v3'
 const ONLINE_S = 60
 
 // PVE nodes report through PVE's own OpenTelemetry metric server, one project
