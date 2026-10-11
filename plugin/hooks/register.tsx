@@ -18,7 +18,7 @@ const PVE_NODES = [
   { project: 'pve', name: 'spawner' },
   { project: 'carrel01', name: 'carrel01' },
 ]
-const AGENTS = ['furnace', 'laptop', 'macmini']
+const AGENTS = ['furnace']
 
 const snap = atom({ plugin: 'hum', key: 'snap' } as const, null)
 
