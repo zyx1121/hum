@@ -15,7 +15,7 @@
 </div>
 
 ```
- 💻 cpu mem disk gpu  ● spawner 1% 73% 67% –  ● carrel01 1% 4% 14% –  ● furnace 4% 36% 87% 3%
+ 💻 cpu mem disk gpu  ● spawner 1% 73% 67% –  ● furnace 4% 36% 87% 3%  ● carrel01 1% 4% 14% –
 ```
 
 以前要看幾台機器的狀態，得一台一台 ssh 進去，不然就是架一整套一直沒空弄的 Prometheus。hum 是每台機器一個執行檔，把指標送到任何 OpenTelemetry 端點，再由 Claude Code 狀態列把所有機器顯示在同一行。

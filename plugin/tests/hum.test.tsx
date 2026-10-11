@@ -55,6 +55,8 @@ test('the band shows each machine, its load and who is offline', async ($, on) =
     const ui = await $.ui.mount({ plugin: 'hum', surface, ...BAND })
     const all = (await ui.findAll({ type: 'Text' })).map(t => t.text).join(' ')
     expect(all).toContain('spawner')
+    expect(all.indexOf('spawner')).toBeLessThan(all.indexOf('furnace'))
+    expect(all.indexOf('furnace')).toBeLessThan(all.indexOf('carrel01'))
     expect(all).toContain('75%') // spawner memory 48/64
     expect(all).toContain('67%') // spawner disk
     expect(all).toContain('95%') // furnace disk, highlighted
@@ -68,7 +70,7 @@ test('the band shows each machine, its load and who is offline', async ($, on) =
 
 test('a second session within the refresh window reuses the stored snapshot', async ($, on) => {
   mock.env(on, { SENSORIUM_ZYX_TOKEN: 'sk_test' })
-  mock.store(on, { 'snap-v3': { fetchedAt: NOW - 1000, hosts: [{ name: 'furnace', ageS: 1, cpu: 0.1, mem: 0.2, disk: 0.3, gpu: null }], error: null } })
+  mock.store(on, { 'snap-v4': { fetchedAt: NOW - 1000, hosts: [{ name: 'furnace', ageS: 1, cpu: 0.1, mem: 0.2, disk: 0.3, gpu: null }], error: null } })
   const clock = mock.clock(on, { now: NOW })
   let fetches = 0
   on('http.fetch', async () => {
