@@ -10,8 +10,9 @@ function point(agoS: number, value: number, host?: string) {
   return { ts: new Date(NOW - agoS * 1000).toISOString(), kind: 'gauge', value, attributes: host ? { 'host.name': host } : { node: 'pve' } }
 }
 
-// Answers what sensorium's query_metrics would: pve fresh, carrel01 unknown,
-// furnace and macmini fresh, laptop last heard from 5 minutes ago.
+// Answers what sensorium's query_metrics would: pve fresh, carrel01 last heard
+// from 5 minutes ago, furnace fresh. laptop and macmini still report into
+// `devices`, but the band does not list them.
 function series(project: string, metric: string) {
   if (project === 'pve') {
     const v: Record<string, number> = {
@@ -22,6 +23,7 @@ function series(project: string, metric: string) {
     }
     return [point(5, v[metric] ?? 0)]
   }
+  if (project === 'carrel01') return [point(300, 0.01)]
   if (project === 'devices') {
     if (metric === 'hw.gpu.utilization') return [point(3, 0.42, 'furnace')]
     const v = metric === 'system.filesystem.utilization' ? 0.95 : 0.2
@@ -57,8 +59,9 @@ test('the band shows each machine, its load and who is offline', async ($, on) =
     expect(all).toContain('67%') // spawner disk
     expect(all).toContain('95%') // furnace disk, highlighted
     expect(all).toContain('42%') // furnace gpu
-    expect(all).toContain('5m ago') // laptop
-    expect(all).toContain('no data') // carrel01
+    expect(all).toContain('5m ago') // carrel01
+    expect(all.includes('laptop')).toBe(false)
+    expect(all.includes('macmini')).toBe(false)
     await ui.unmount()
   }
 })
