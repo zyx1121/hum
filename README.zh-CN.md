@@ -15,7 +15,7 @@
 </div>
 
 ```
- 💻  ● spawner 󰻠 1% 󰍛 73% 󰋊 67%  ● furnace 󰻠 4% 󰍛 36% 󰋊 87% 󰢮 3%  ● carrel01 󰻠 1% 󰍛 4% 󰋊 14%
+ 💻  ● spawner 󰻠 1% 󰍛 73% 󰋊 67% 󰛳 28K  ● furnace 󰻠 4% 󰍛 36% 󰋊 87% 󰢮 3% 󰛳 12K  ● carrel01 󰻠 1% 󰍛 4% 󰋊 14% 󰛳 25K
 ```
 
 以前要看几台机器的状态，得一台一台 ssh 进去，不然就是搭一整套一直没空弄的 Prometheus。hum 是每台机器一个可执行文件，把指标发到任何 OpenTelemetry 端点，再由 Claude Code 状态栏把所有机器显示在同一行。

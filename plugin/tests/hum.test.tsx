@@ -6,14 +6,24 @@ const BAND = {
   props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 160, scroll: { offset: 0, bodyRows: 10 }, view: {} },
 } as const
 
-function point(agoS: number, value: number, host?: string) {
-  return { ts: new Date(NOW - agoS * 1000).toISOString(), kind: 'gauge', value, attributes: host ? { 'host.name': host } : { node: 'pve' } }
+function point(agoS: number, value: number, host?: string, extra: Record<string, string> = {}) {
+  const attributes = { ...(host ? { 'host.name': host } : { node: 'pve' }), ...extra }
+  return { ts: new Date(NOW - agoS * 1000).toISOString(), kind: 'gauge', value, attributes }
 }
 
 // Answers what sensorium's query_metrics would: pve fresh, carrel01 last heard
 // from 5 minutes ago, furnace fresh. laptop and macmini still report into
 // `devices`, but the band does not list them.
 function series(project: string, metric: string) {
+  // spawner: nic0 moves 20 KB in 10 s each way; the bridge must not count.
+  if (project === 'pve' && metric.startsWith('proxmox_node_network_')) {
+    return [
+      point(5, 120_000, undefined, { device: 'nic0' }),
+      point(5, 9_000_000, undefined, { device: 'vmbr0' }),
+      point(15, 100_000, undefined, { device: 'nic0' }),
+      point(15, 1_000, undefined, { device: 'vmbr0' }),
+    ]
+  }
   if (project === 'pve') {
     const v: Record<string, number> = {
       proxmox_node_cpustat_cpu: 0.03,
@@ -26,6 +36,15 @@ function series(project: string, metric: string) {
   if (project === 'carrel01') return [point(300, 0.01)]
   if (project === 'devices') {
     if (metric === 'hw.gpu.utilization') return [point(3, 0.42, 'furnace')]
+    // furnace: receives 1.5 MB and sends 0 in 15 s.
+    if (metric === 'system.network.io') {
+      return [
+        point(3, 3_000_000, 'furnace', { 'network.io.direction': 'receive' }),
+        point(3, 500, 'furnace', { 'network.io.direction': 'transmit' }),
+        point(18, 1_500_000, 'furnace', { 'network.io.direction': 'receive' }),
+        point(18, 500, 'furnace', { 'network.io.direction': 'transmit' }),
+      ]
+    }
     const v = metric === 'system.filesystem.utilization' ? 0.95 : 0.2
     return [point(3, v, 'furnace'), point(4, v, 'macmini'), point(300, v, 'laptop')]
   }
@@ -62,6 +81,8 @@ test('the band shows each machine, its load and who is offline', async ($, on) =
     expect(all).toContain('95%') // furnace disk, highlighted
     expect(all).toContain('\u{F08AE} 42%') // furnace gpu
     expect(all.includes('cpu mem disk gpu')).toBe(false)
+    expect(all).toContain('\u{F06F3} 4.0K') // spawner: 2 + 2 KB/s on nic0 only
+    expect(all).toContain('\u{F06F3} 100K') // furnace: 100 KB/s
     expect(all.startsWith('💻')).toBe(true) // leads like the other mods' bands
     expect(all.includes('–')).toBe(false) // spawner has no gpu
     expect(all).toContain('5m ago') // carrel01
@@ -73,7 +94,7 @@ test('the band shows each machine, its load and who is offline', async ($, on) =
 
 test('a second session within the refresh window reuses the stored snapshot', async ($, on) => {
   mock.env(on, { SENSORIUM_ZYX_TOKEN: 'sk_test' })
-  mock.store(on, { 'snap-v4': { fetchedAt: NOW - 1000, hosts: [{ name: 'furnace', ageS: 1, cpu: 0.1, mem: 0.2, disk: 0.3, gpu: null }], error: null } })
+  mock.store(on, { 'snap-v5': { fetchedAt: NOW - 1000, hosts: [{ name: 'furnace', ageS: 1, cpu: 0.1, mem: 0.2, disk: 0.3, gpu: null }], error: null } })
   const clock = mock.clock(on, { now: NOW })
   let fetches = 0
   on('http.fetch', async () => {
