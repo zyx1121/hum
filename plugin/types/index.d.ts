@@ -7,6 +7,8 @@ export type Host = {
   disk: number | null
   /** Busiest GPU, 0..1; null on machines without one. */
   gpu: number | null
+  /** Received plus sent, bytes per second, over the two newest readings. */
+  net: number | null
 }
 
 export type Snapshot = { fetchedAt: number; hosts: Host[]; error: string | null }

@@ -8,7 +8,7 @@ const REFRESH_MS = 15_000
 const WINDOW_MS = 90_000
 // Bump when Snapshot's shape or the host list changes: sessions still running
 // an older build keep writing the old snapshot under the old key.
-const STORE_KEY = 'snap-v4'
+const STORE_KEY = 'snap-v5'
 const ONLINE_S = 60
 
 // PVE nodes report through PVE's own OpenTelemetry metric server, one project
@@ -50,16 +50,44 @@ async function query($: EngineInterface, token: string, project: string, metricN
   return (JSON.parse(text) as Series).points ?? []
 }
 
+// Rate of a cumulative counter from its two newest readings; a reset counts as 0.
+function rate(points: Point[]): number | null {
+  const [b, a] = points
+  if (!a || !b) return null
+  const dt = (Date.parse(b.ts) - Date.parse(a.ts)) / 1000
+  return dt > 0 ? Math.max(0, b.value - a.value) / dt : null
+}
+
+function sum(values: (number | null)[]): number | null {
+  const known = values.filter((v): v is number => v != null)
+  return known.length ? known.reduce((a, b) => a + b, 0) : null
+}
+
+// PVE reports every bridge, tap and tunnel too; only the physical NICs count.
+const PHYSICAL_NIC = /^(nic|en|eth|wl)/
+
+function nicRate(points: Point[]): number | null {
+  const devices = new Map<string, Point[]>()
+  for (const p of points) {
+    const device = String(p.attributes.device ?? '')
+    if (PHYSICAL_NIC.test(device)) devices.set(device, [...(devices.get(device) ?? []), p])
+  }
+  return sum([...devices.values()].map(rate))
+}
+
 function age(now: number, p: Point | undefined): number | null {
   return p ? Math.max(0, Math.round((now - Date.parse(p.ts)) / 1000)) : null
 }
 
 async function pveHost($: EngineInterface, token: string, now: number, project: string, name: string): Promise<Host> {
-  const [cpu, used, total, disk] = await Promise.all([
+  const [cpu, used, total, disk, rx, tx] = await Promise.all([
     query($, token, project, 'proxmox_node_cpustat_cpu', 1),
     query($, token, project, 'proxmox_node_memory_memused', 1),
     query($, token, project, 'proxmox_node_memory_memtotal', 1),
     query($, token, project, 'proxmox_node_blockstat_per', 1),
+    // A node reports about 40 interfaces per tick; 3 ticks cover the two newest.
+    query($, token, project, 'proxmox_node_network_receive_total', 150),
+    query($, token, project, 'proxmox_node_network_transmit_total', 150),
   ])
   return {
     name,
@@ -68,16 +96,18 @@ async function pveHost($: EngineInterface, token: string, now: number, project: 
     mem: used[0] && total[0]?.value ? used[0].value / total[0].value : null,
     disk: disk[0] ? disk[0].value / 100 : null,
     gpu: null,
+    net: sum([nicRate(rx), nicRate(tx)]),
   }
 }
 
 async function agentHosts($: EngineInterface, token: string, now: number): Promise<Host[]> {
   const limit = AGENTS.length * 16
-  const [cpu, mem, fs, gpu] = await Promise.all([
+  const [cpu, mem, fs, gpu, net] = await Promise.all([
     query($, token, 'devices', 'system.cpu.utilization', limit),
     query($, token, 'devices', 'system.memory.utilization', limit),
     query($, token, 'devices', 'system.filesystem.utilization', limit),
     query($, token, 'devices', 'hw.gpu.utilization', limit),
+    query($, token, 'devices', 'system.network.io', 64),
   ])
   // Points come newest first, so the first one per host is its latest reading.
   const latest = (points: Point[], host: string) => points.find(p => p.attributes['host.name'] === host)
@@ -90,6 +120,11 @@ async function agentHosts($: EngineInterface, token: string, now: number): Promi
       mem: latest(mem, name)?.value ?? null,
       disk: disks.length ? Math.max(...disks) : null,
       gpu: latest(gpu, name)?.value ?? null,
+      net: sum(
+        ['receive', 'transmit'].map(dir =>
+          rate(net.filter(p => p.attributes['host.name'] === name && p.attributes['network.io.direction'] === dir)),
+        ),
+      ),
     }
   })
 }
@@ -120,13 +155,25 @@ async function refresh($: EngineInterface): Promise<void> {
   await update($, snap, () => next)
 }
 
-// Nerd Font glyphs: nf-md-cpu_64_bit, nf-md-memory, nf-md-harddisk, nf-md-expansion_card.
+// Nerd Font glyphs: nf-md-cpu_64_bit, nf-md-memory, nf-md-harddisk, nf-md-expansion_card, nf-md-network.
 const METRICS = [
   { key: 'cpu', icon: '\u{F0EE0}' },
   { key: 'mem', icon: '\u{F035B}' },
   { key: 'disk', icon: '\u{F02CA}' },
   { key: 'gpu', icon: '\u{F08AE}' },
 ] as const
+const NET_ICON = '\u{F06F3}'
+
+// Bytes per second, short: 512B, 4.3K, 12M.
+function bytes(v: number): string {
+  const units = ['B', 'K', 'M', 'G']
+  let i = 0
+  while (v >= 1000 && i < units.length - 1) {
+    v /= 1000
+    i += 1
+  }
+  return `${v < 10 && i ? v.toFixed(1) : Math.round(v)}${units[i]}`
+}
 
 function level(v: number | null | undefined): string | undefined {
   if (v == null) return undefined
@@ -166,6 +213,7 @@ export const register: Register = on => {
                       {m.icon} {Math.round(host[m.key]! * 100)}%
                     </Text>
                   ))}
+                  {host.net != null ? ` ${NET_ICON} ${bytes(host.net)}` : null}
                 </Text>
               ) : (
                 <Text dimColor>{host.ageS === null ? 'no data' : `${Math.round(host.ageS / 60)}m ago`}</Text>
