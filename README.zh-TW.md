@@ -44,7 +44,7 @@ chmod +x hum && ./hum -once
    | 系統 | 執行方式 | 步驟 |
    |------|----------|------|
    | Linux | systemd 服務 | 把 [deploy/hum.service](deploy/hum.service) 複製到 `/etc/systemd/system/`，權杖放在 `/etc/hum/token`，執行 `systemctl enable --now hum` |
-   | macOS | launchd agent | 把 [deploy/tw.zyx.hum.plist](deploy/tw.zyx.hum.plist) 複製到 `~/Library/LaunchAgents/`，填好佔位值，執行 `launchctl bootstrap gui/$(id -u) <plist>` |
+   | macOS | `launchd` agent | 把 [deploy/tw.zyx.hum.plist](deploy/tw.zyx.hum.plist) 複製到 `~/Library/LaunchAgents/`，填好佔位值，執行 `launchctl bootstrap gui/$(id -u) <plist>` |
    | Windows | 服務，Smart App Control 開啟時改用開機排程 | 把 `hum.exe`、`hum.ps1` 和 `token` 檔放在 [deploy/install-windows.ps1](deploy/install-windows.ps1) 旁邊，用系統管理員執行 |
 
 3. 在 Claude Code 加上狀態列：

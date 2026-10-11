@@ -42,7 +42,7 @@ You should see one OTLP JSON payload with this machine's metrics. In this mode, 
    | OS | Runs as | How |
    |----|---------|-----|
    | Linux | systemd service | copy [deploy/hum.service](deploy/hum.service) to `/etc/systemd/system/`, put the token in `/etc/hum/token`, `systemctl enable --now hum` |
-   | macOS | launchd agent | copy [deploy/tw.zyx.hum.plist](deploy/tw.zyx.hum.plist) to `~/Library/LaunchAgents/`, replace the placeholders, `launchctl bootstrap gui/$(id -u) <plist>` |
+   | macOS | `launchd` agent | copy [deploy/tw.zyx.hum.plist](deploy/tw.zyx.hum.plist) to `~/Library/LaunchAgents/`, replace the placeholders, `launchctl bootstrap gui/$(id -u) <plist>` |
    | Windows | service, or a startup task under Smart App Control | put `hum.exe`, `hum.ps1` and a `token` file next to [deploy/install-windows.ps1](deploy/install-windows.ps1) and run it as Administrator |
 
 3. Add the band to Claude Code:
