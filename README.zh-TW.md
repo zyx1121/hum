@@ -1,4 +1,4 @@
-<!-- 翻譯自 README.md @ docs/readme-v2。只翻 "For AI agents" 以上的章節；英文版更新時一起改。 -->
+<!-- 翻譯自 README.md @ docs/readme-v2。只翻 "For AI agents" 以上的章節，英文版更新時一起改。 -->
 
 <div align="center">
 
@@ -57,7 +57,7 @@ chmod +x hum && ./hum -once
    它用 `SENSORIUM_ZYX_TOKEN` 裡的權杖讀 sensorium 的 MCP 端點，需要設 `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`。
 
 > [!IMPORTANT]
-> 權杖檔是唯一的機密。Windows 安裝程式只讓 SYSTEM 和 Administrators 讀取；systemd unit 用 credential 交給動態使用者。
+> 權杖檔是唯一的機密。Windows 安裝程式只讓 SYSTEM 和 Administrators 讀取。systemd unit 用 credential 交給動態使用者。
 
 Proxmox VE 9.1 以後可以不裝 agent：內建的 OpenTelemetry 指標伺服器會回報節點和所有 guest。
 

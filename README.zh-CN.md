@@ -1,4 +1,4 @@
-<!-- 翻译自 README.md @ docs/readme-v2。只翻译 "For AI agents" 之前的章节；英文版更新时一起改。 -->
+<!-- 翻译自 README.md @ docs/readme-v2。只翻译 "For AI agents" 之前的章节，英文版更新时一起改。 -->
 
 <div align="center">
 
@@ -57,7 +57,7 @@ chmod +x hum && ./hum -once
    它用 `SENSORIUM_ZYX_TOKEN` 里的令牌读取 sensorium 的 MCP 端点，需要设置 `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`。
 
 > [!IMPORTANT]
-> 令牌文件是唯一的机密。Windows 安装程序只允许 SYSTEM 和 Administrators 读取；systemd unit 通过 credential 交给动态用户。
+> 令牌文件是唯一的机密。Windows 安装程序只允许 SYSTEM 和 Administrators 读取。systemd unit 通过 credential 交给动态用户。
 
 Proxmox VE 9.1 及以后可以不装 agent：内置的 OpenTelemetry 指标服务器会上报节点和所有 guest。
 

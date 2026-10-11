@@ -16,13 +16,13 @@
  💻 cpu mem disk gpu  ● spawner 1% 73% 67% –  ● carrel01 1% 4% 14% –  ● furnace 4% 36% 87% 3%  ● laptop 4% 64% 13% 0%  ● macmini 2% 76% 98% 0%
 ```
 
-Checking a few machines used to mean an ssh round each, or a Prometheus stack you never got around to. hum is one binary per machine that reports to any OpenTelemetry endpoint, and a Claude Code band that shows every machine in one line.
+Checking a few machines used to mean an ssh round each, or a Prometheus stack that you never had time to build. hum is one binary per machine that reports to any OpenTelemetry endpoint, and a Claude Code band that shows every machine in one line.
 
 ## Features
 
 - **Reports host metrics**: CPU, memory, every fixed disk, network bytes, uptime and GPU load every 15 seconds, as OTLP/HTTP JSON.
 - **Stays small**: one static binary (7 MB on disk, 17 MB resident) for Linux, Windows and macOS, with no SDK and no config file.
-- **Runs where binaries cannot**: with Windows Smart App Control on, the installer falls back to `hum.ps1`, which sends the same metrics.
+- **Runs where binaries cannot**: with Windows Smart App Control on, the installer uses `hum.ps1` instead, which sends the same metrics.
 - **Shows them in Claude Code**: the `hum` plugin draws one line above the prompt, offline machines in red.
 
 ## Quick start
@@ -32,7 +32,7 @@ curl -fsSL -o hum https://github.com/zyx1121/hum/releases/latest/download/hum-da
 chmod +x hum && ./hum -once
 ```
 
-You should see one OTLP JSON payload with this machine's metrics; nothing is sent. Builds for Linux, Windows and Intel Macs are on [Releases](https://github.com/zyx1121/hum/releases).
+You should see one OTLP JSON payload with this machine's metrics. In this mode, hum sends nothing. Builds for Linux, Windows and Intel Macs are on [Releases](https://github.com/zyx1121/hum/releases).
 
 ## Usage
 
@@ -42,7 +42,7 @@ You should see one OTLP JSON payload with this machine's metrics; nothing is sen
    | OS | Runs as | How |
    |----|---------|-----|
    | Linux | systemd service | copy [deploy/hum.service](deploy/hum.service) to `/etc/systemd/system/`, put the token in `/etc/hum/token`, `systemctl enable --now hum` |
-   | macOS | launchd agent | copy [deploy/tw.zyx.hum.plist](deploy/tw.zyx.hum.plist) to `~/Library/LaunchAgents/`, fill in the placeholders, `launchctl bootstrap gui/$(id -u) <plist>` |
+   | macOS | launchd agent | copy [deploy/tw.zyx.hum.plist](deploy/tw.zyx.hum.plist) to `~/Library/LaunchAgents/`, replace the placeholders, `launchctl bootstrap gui/$(id -u) <plist>` |
    | Windows | service, or a startup task under Smart App Control | put `hum.exe`, `hum.ps1` and a `token` file next to [deploy/install-windows.ps1](deploy/install-windows.ps1) and run it as Administrator |
 
 3. Add the band to Claude Code:
@@ -55,7 +55,7 @@ You should see one OTLP JSON payload with this machine's metrics; nothing is sen
    It reads sensorium's MCP endpoint with the token in `SENSORIUM_ZYX_TOKEN` and needs `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`.
 
 > [!IMPORTANT]
-> The token file is the only secret. The Windows installer limits it to SYSTEM and Administrators; the systemd unit passes it to a dynamic user as a credential.
+> The token file is the only secret. The Windows installer limits it to SYSTEM and Administrators. The systemd unit gives it to a dynamic user as a credential.
 
 Proxmox VE 9.1 and later can skip the agent: its built-in OpenTelemetry metric server reports the node and every guest.
 
@@ -78,7 +78,7 @@ flowchart LR
   S -- MCP query_metrics --> B[Claude Code band]
 ```
 
-Each tick, hum reads the host through [gopsutil](https://github.com/shirou/gopsutil) and posts one export request using OpenTelemetry semantic-convention names. Every point carries `host.name`, so backends that drop the resource still tell machines apart. The agent holds only an ingest token, which can write metrics and read nothing.
+Each tick, hum reads the host through [gopsutil](https://github.com/shirou/gopsutil) and posts one export request using OpenTelemetry semantic-convention names. Every point carries `host.name`, so a backend that drops the resource can still identify each machine. The agent holds only an ingest token, which can write metrics and read nothing.
 
 ## For AI agents
 
@@ -108,7 +108,7 @@ go test ./... && go build -o hum .
 CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test plugin
 ```
 
-CI runs `go vet` for Linux and Windows, `go test`, and builds all five targets; a `v*` tag publishes them as a release.
+CI runs `go vet` for Linux and Windows, `go test`, and builds all five targets. A `v*` tag publishes them as a release.
 
 ## License
 
