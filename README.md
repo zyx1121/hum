@@ -13,10 +13,12 @@
 </div>
 
 ```
- 💻  ● spawner 󰻠 1% 󰍛 73% 󰋊 67% 󰛳 28K  ● furnace 󰻠 4% 󰍛 36% 󰋊 87% 󰢮 3% 󰛳 12K  ● carrel01 󰻠 1% 󰍛 4% 󰋊 14% 󰛳 25K
+╭─ SPAWNER ──────────────────╮╭─ FURNACE ─────────────────────────╮╭─ CARREL01 ─────────────────╮
+│ CPU 1%  MEM 73%  DSK 67%   ││ CPU 4%  MEM 36%  DSK 87%  GPU 3%  ││ CPU 1%  MEM 4%  DSK 14%    │
+╰──────────────────── 28K/s ─╯╰─────────────────────────── 12K/s ─╯╰──────────────────── 25K/s ─╯
 ```
 
-Looking at a few machines used to mean an ssh round each, or a Prometheus stack that you never had time to build. hum is one binary per machine that reports to any OpenTelemetry endpoint, and a Claude Code band that shows every machine in one line.
+Looking at a few machines used to mean an ssh round each, or a Prometheus stack that you never had time to build. hum is one binary per machine that reports to any OpenTelemetry endpoint, and a Claude Code band that shows every machine as one panel in a row.
 
 ## Features
 
