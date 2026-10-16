@@ -73,17 +73,16 @@ test('the band shows each machine, its load and who is offline', async ($, on) =
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ plugin: 'hum', surface, ...BAND })
     const all = (await ui.findAll({ type: 'Text' })).map(t => t.text).join(' ')
-    expect(all).toContain('spawner')
-    expect(all.indexOf('spawner')).toBeLessThan(all.indexOf('furnace'))
-    expect(all.indexOf('furnace')).toBeLessThan(all.indexOf('carrel01'))
-    expect(all).toContain('75%') // spawner memory 48/64
-    expect(all).toContain('67%') // spawner disk
+    expect(all).toContain('SPAWNER')
+    expect(all.indexOf('SPAWNER')).toBeLessThan(all.indexOf('FURNACE'))
+    expect(all.indexOf('FURNACE')).toBeLessThan(all.indexOf('CARREL01'))
+    expect(all).toContain('MEM 75%') // spawner memory 48/64
+    expect(all).toContain('DSK 67%') // spawner disk
     expect(all).toContain('95%') // furnace disk, highlighted
-    expect(all).toContain('\u{F08AE} 42%') // furnace gpu
-    expect(all.includes('cpu mem disk gpu')).toBe(false)
-    expect(all).toContain('\u{F06F3} 4.0K') // spawner: 2 + 2 KB/s on nic0 only
-    expect(all).toContain('\u{F06F3} 100K') // furnace: 100 KB/s
-    expect(all.startsWith('💻')).toBe(true) // leads like the other mods' bands
+    expect(all).toContain('GPU 42%') // furnace gpu
+    expect(all).toContain('4.0K/s') // spawner: 2 + 2 KB/s on nic0 only
+    expect(all).toContain('100K/s') // furnace: 100 KB/s
+    expect(all.includes('\u{F0EE0}')).toBe(false) // labels, not Nerd Font glyphs
     expect(all.includes('–')).toBe(false) // spawner has no gpu
     expect(all).toContain('5m ago') // carrel01
     expect(all.includes('laptop')).toBe(false)
@@ -108,7 +107,7 @@ test('a second session within the refresh window reuses the stored snapshot', as
   await clock.settle()
   expect(fetches).toBe(0)
   const ui = await $.ui.mount({ plugin: 'hum', surface: 'terminal', ...BAND })
-  expect((await ui.findAll({ type: 'Text' })).map(t => t.text).join(' ')).toContain('furnace')
+  expect((await ui.findAll({ type: 'Text' })).map(t => t.text).join(' ')).toContain('FURNACE')
 })
 
 test('without a token the band says so instead of fetching', async ($, on) => {

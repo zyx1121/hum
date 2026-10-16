@@ -1,7 +1,8 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, RenderElement } from 'claude-code'
 
 import type { Host, Snapshot } from '../types'
+import { COLOR, lineOf, panelOf, rowOf, type PanelKit, type Seg, type Tone } from './panel'
 
 const MCP = 'https://sensorium.zyx.tw/mcp'
 const REFRESH_MS = 15_000
@@ -155,14 +156,12 @@ async function refresh($: EngineInterface): Promise<void> {
   await update($, snap, () => next)
 }
 
-// Nerd Font glyphs: nf-md-cpu_64_bit, nf-md-memory, nf-md-harddisk, nf-md-expansion_card, nf-md-network.
 const METRICS = [
-  { key: 'cpu', icon: '\u{F0EE0}' },
-  { key: 'mem', icon: '\u{F035B}' },
-  { key: 'disk', icon: '\u{F02CA}' },
-  { key: 'gpu', icon: '\u{F08AE}' },
+  { key: 'cpu', label: 'CPU' },
+  { key: 'mem', label: 'MEM' },
+  { key: 'disk', label: 'DSK' },
+  { key: 'gpu', label: 'GPU' },
 ] as const
-const NET_ICON = '\u{F06F3}'
 
 // Bytes per second, short: 512B, 4.3K, 12M.
 function bytes(v: number): string {
@@ -175,11 +174,33 @@ function bytes(v: number): string {
   return `${v < 10 && i ? v.toFixed(1) : Math.round(v)}${units[i]}`
 }
 
-function level(v: number | null | undefined): string | undefined {
-  if (v == null) return undefined
-  if (v >= 0.9) return 'red'
-  if (v >= 0.75) return 'yellow'
-  return undefined
+function level(v: number | null | undefined): Tone {
+  if (v == null) return 'normal'
+  if (v >= 0.9) return 'error'
+  if (v >= 0.75) return 'warn'
+  return 'normal'
+}
+
+const TONE_COLOR: Record<Tone, string> = { normal: COLOR.text, warn: COLOR.warn, error: COLOR.error, dim: COLOR.muted }
+
+// One panel per host: its metrics inside, its network rate on the bottom edge,
+// the border colored by its worst metric.
+function hostPanel(kit: PanelKit, host: Host): RenderElement {
+  const online = host.ageS !== null && host.ageS <= ONLINE_S
+  const title = host.name.toUpperCase()
+  if (!online) {
+    const text = host.ageS === null ? 'no data' : `${Math.round(host.ageS / 60)}m ago`
+    return panelOf(kit, { title, tone: 'dim' }, lineOf(kit, [{ text, color: COLOR.muted }]))
+  }
+  // A metric the host does not report (no GPU) is left out.
+  const shown = METRICS.filter(m => host[m.key] != null)
+  const segs: Seg[] = shown.flatMap((m, i) => [
+    { text: `${i ? '  ' : ''}${m.label} `, color: COLOR.label },
+    { text: `${Math.round(host[m.key]! * 100)}%`, color: TONE_COLOR[level(host[m.key])], bold: level(host[m.key]) !== 'normal' },
+  ])
+  const tones = shown.map(m => level(host[m.key]))
+  const tone: Tone = tones.includes('error') ? 'error' : tones.includes('warn') ? 'warn' : 'normal'
+  return panelOf(kit, { title, tone, subtitle: host.net != null ? `${bytes(host.net)}/s` : undefined }, lineOf(kit, segs))
 }
 
 export const register: Register = on => {
@@ -195,40 +216,10 @@ export const register: Register = on => {
     if (e.props.hasSurvey || !s) return next(e)
 
     const { Box, Text } = $.ui.resolve(e)
-    const mine = (
-      <Box paddingX={1} flexDirection="row" flexWrap="wrap" columnGap={2}>
-        <Text>💻</Text>
-        {s.hosts.map(host => {
-          const online = host.ageS !== null && host.ageS <= ONLINE_S
-          return (
-            <Box key={host.name} flexDirection="row">
-              <Text color={online ? 'green' : 'red'}>● </Text>
-              <Text dimColor={!online}>{host.name} </Text>
-              {online ? (
-                <Text>
-                  {/* A metric the host does not report (no GPU) is left out. */}
-                  {METRICS.filter(m => host[m.key] != null).map((m, i) => (
-                    <Text key={m.key} color={level(host[m.key])}>
-                      {i ? ' ' : ''}
-                      {m.icon} {Math.round(host[m.key]! * 100)}%
-                    </Text>
-                  ))}
-                  {host.net != null ? ` ${NET_ICON} ${bytes(host.net)}` : null}
-                </Text>
-              ) : (
-                <Text dimColor>{host.ageS === null ? 'no data' : `${Math.round(host.ageS / 60)}m ago`}</Text>
-              )}
-            </Box>
-          )
-        })}
-        {s.error ? <Text color="red">{s.error}</Text> : null}
-      </Box>
-    )
-    return (
-      <Box flexDirection="column">
-        {mine}
-        {await next(e)}
-      </Box>
-    )
+    const mine = s.hosts.map(host => hostPanel({ Box, Text }, host))
+    if (s.error) {
+      mine.push(panelOf({ Box, Text }, { title: 'SENSORIUM', tone: 'error' }, lineOf({ Box, Text }, [{ text: s.error, color: COLOR.error }])))
+    }
+    return rowOf({ Box, Text }, mine, await next(e))
   })
 }
