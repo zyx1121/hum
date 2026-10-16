@@ -12,15 +12,19 @@ import type { Elements, RenderChildren, RenderElement } from 'claude-code'
 /** The tags a panel draws with. */
 export type PanelKit = Pick<Elements['terminal'], 'Box' | 'Text'>
 
-/** Tokyo Night colors, shared by the three mods. */
+/**
+ * The ditto statusline's palette, shared by the three mods: its lavender body
+ * for titles, its highlight for text, darker lavenders for the quiet parts.
+ * Warnings and errors follow the person's theme, like the statusline's.
+ */
 export const COLOR = {
-  text: '#c0caf5',
-  label: '#565f89',
-  muted: '#737aa2',
-  line: '#3b4261',
-  title: '#7aa2f7',
-  warn: '#ff9e64',
-  error: '#f7768e',
+  text: '#ece0fa',
+  label: '#8e7ba8',
+  muted: '#9a8fad',
+  line: '#5e4f70',
+  title: '#c3a1e6',
+  warn: 'warning',
+  error: 'error',
 } as const
 
 /** What the border says: quiet, a value worth a look, or a failure. */
