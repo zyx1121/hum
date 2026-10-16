@@ -118,18 +118,22 @@ const WIDE =
 /**
  * This mod's panels, then what the plugins beneath draw, in one row.
  *
+ * A mod whose panels grow into the free space passes `isLast`: the space for
+ * what is beneath then keeps to its content instead of taking a share.
+ *
  * @param kit Box and Text
  * @param mine this mod's panels
  * @param beneath `next(e)`'s tree
+ * @param isLast true when this mod's panels fill the rest of the row
  * @returns the tree
  */
-export function rowOf(kit: PanelKit, mine: RenderChildren, beneath: RenderChildren): RenderElement {
+export function rowOf(kit: PanelKit, mine: RenderChildren, beneath: RenderChildren, isLast = false): RenderElement {
   const { Box } = kit
 
   return (
     <Box flexDirection="row" flexGrow={1}>
       {mine}
-      <Box flexDirection="row" flexGrow={1}>
+      <Box flexDirection="row" flexGrow={isLast ? 0 : 1}>
         {beneath}
       </Box>
     </Box>

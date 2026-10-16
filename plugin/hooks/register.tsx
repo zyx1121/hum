@@ -220,6 +220,6 @@ export const register: Register = on => {
     if (s.error) {
       mine.push(panelOf({ Box, Text }, { title: 'SENSORIUM', tone: 'error' }, lineOf({ Box, Text }, [{ text: s.error, color: COLOR.error }])))
     }
-    return rowOf({ Box, Text }, mine, await next(e))
+    return rowOf({ Box, Text }, mine, await next(e), true)
   })
 }
