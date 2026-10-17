@@ -27,7 +27,7 @@ export const COLOR = {
   error: 'error',
 } as const
 
-/** What the border says: quiet, a value worth a look, or a failure. */
+/** What the panel says: quiet, a value worth a look, or a failure (the only tone that colors the border). */
 export type Tone = 'normal' | 'warn' | 'error' | 'dim'
 
 /** The cells the border and its padding take across a panel. */
@@ -55,7 +55,8 @@ export type PanelSpec = {
 export function panelOf(kit: PanelKit, spec: PanelSpec, body: RenderChildren): RenderElement {
   const { Box, Text } = kit
   const tone = spec.tone ?? 'normal'
-  const border = tone === 'warn' ? COLOR.warn : tone === 'error' ? COLOR.error : COLOR.line
+  // A value worth a look colors only that value; the border changes for a failure alone.
+  const border = tone === 'error' ? COLOR.error : COLOR.line
   const size = spec.width === undefined ? { flexGrow: 1, flexShrink: 1 } : { width: spec.width, flexShrink: 0 }
 
   return (
