@@ -9,19 +9,20 @@ const REFRESH_MS = 15_000
 const WINDOW_MS = 90_000
 // Bump when Snapshot's shape or the host list changes: sessions still running
 // an older build keep writing the old snapshot under the old key.
-const STORE_KEY = 'snap-v5'
+const STORE_KEY = 'snap-v6'
 const ONLINE_S = 60
 
 // PVE nodes report through PVE's own OpenTelemetry metric server, one project
-// per node; the other machines run the hum agent into the shared `devices` project.
-// The project is named after the PVE node; `name` is what the band shows.
-const PVE_NODES = [
-  { project: 'pve', name: 'spawner' },
-  { project: 'carrel01', name: 'carrel01' },
+// per cluster, each point tagged with its `node`; the other machines run the
+// hum agent into the shared `devices` project. `nodes` maps the PVE node name
+// to what the band shows.
+const PVE_CLUSTERS = [
+  { project: 'pve', nodes: { pve: 'spawner' } },
+  { project: 'carrel', nodes: { carrel01: 'carrel01', carrel02: 'carrel02', carrel03: 'carrel03', carrel04: 'carrel04' } },
 ]
 const AGENTS = ['furnace']
 // Band order, left to right.
-const ORDER = ['spawner', 'furnace', 'carrel01']
+const ORDER = ['spawner', 'furnace', 'carrel01', 'carrel02', 'carrel03', 'carrel04']
 
 const snap = atom({ plugin: 'hum', key: 'snap' } as const, null)
 
@@ -80,25 +81,31 @@ function age(now: number, p: Point | undefined): number | null {
   return p ? Math.max(0, Math.round((now - Date.parse(p.ts)) / 1000)) : null
 }
 
-async function pveHost($: EngineInterface, token: string, now: number, project: string, name: string): Promise<Host> {
+async function pveHosts($: EngineInterface, token: string, now: number, project: string, nodes: Record<string, string>): Promise<Host[]> {
+  const n = Object.keys(nodes).length
   const [cpu, used, total, disk, rx, tx] = await Promise.all([
-    query($, token, project, 'proxmox_node_cpustat_cpu', 1),
-    query($, token, project, 'proxmox_node_memory_memused', 1),
-    query($, token, project, 'proxmox_node_memory_memtotal', 1),
-    query($, token, project, 'proxmox_node_blockstat_per', 1),
-    // A node reports about 40 interfaces per tick; 3 ticks cover the two newest.
-    query($, token, project, 'proxmox_node_network_receive_total', 150),
-    query($, token, project, 'proxmox_node_network_transmit_total', 150),
+    query($, token, project, 'proxmox_node_cpustat_cpu', n * 3),
+    query($, token, project, 'proxmox_node_memory_memused', n * 3),
+    query($, token, project, 'proxmox_node_memory_memtotal', n * 3),
+    query($, token, project, 'proxmox_node_blockstat_per', n * 3),
+    // A node reports 40 or more interfaces per tick; 3 ticks cover the two newest.
+    query($, token, project, 'proxmox_node_network_receive_total', Math.min(1000, n * 200)),
+    query($, token, project, 'proxmox_node_network_transmit_total', Math.min(1000, n * 200)),
   ])
-  return {
-    name,
-    ageS: age(now, cpu[0]),
-    cpu: cpu[0]?.value ?? null,
-    mem: used[0] && total[0]?.value ? used[0].value / total[0].value : null,
-    disk: disk[0] ? disk[0].value / 100 : null,
-    gpu: null,
-    net: sum([nicRate(rx), nicRate(tx)]),
-  }
+  // Points come newest first, so the first one per node is its latest reading.
+  const of = (points: Point[], node: string) => points.filter(p => p.attributes.node === node)
+  return Object.entries(nodes).map(([node, name]) => {
+    const [c, u, t, d] = [cpu, used, total, disk].map(points => of(points, node)[0])
+    return {
+      name,
+      ageS: age(now, c),
+      cpu: c?.value ?? null,
+      mem: u && t?.value ? u.value / t.value : null,
+      disk: d ? d.value / 100 : null,
+      gpu: null,
+      net: sum([nicRate(of(rx, node)), nicRate(of(tx, node))]),
+    }
+  })
 }
 
 async function agentHosts($: EngineInterface, token: string, now: number): Promise<Host[]> {
@@ -144,8 +151,8 @@ async function refresh($: EngineInterface): Promise<void> {
     next = { fetchedAt: now, hosts: [], error: 'SENSORIUM_ZYX_TOKEN is not set' }
   } else {
     try {
-      const pve = await Promise.all(PVE_NODES.map(n => pveHost($, token, now, n.project, n.name)))
-      const hosts = [...pve, ...(await agentHosts($, token, now))]
+      const pve = await Promise.all(PVE_CLUSTERS.map(c => pveHosts($, token, now, c.project, c.nodes)))
+      const hosts = [...pve.flat(), ...(await agentHosts($, token, now))]
       hosts.sort((a, b) => ORDER.indexOf(a.name) - ORDER.indexOf(b.name))
       next = { fetchedAt: now, hosts, error: null }
     } catch (err) {
