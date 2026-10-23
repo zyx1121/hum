@@ -204,7 +204,7 @@ function hostPanel(kit: PanelKit, host: Host): RenderElement {
   const shown = METRICS.filter(m => host[m.key] != null)
   const segs: Seg[] = shown.flatMap((m, i) => [
     { text: `${i ? '  ' : ''}${m.label} `, color: COLOR.label },
-    { text: `${Math.round(host[m.key]! * 100)}%`, color: TONE_COLOR[level(host[m.key])], bold: level(host[m.key]) !== 'normal' },
+    { text: `${Math.round(host[m.key]! * 100)}`, color: TONE_COLOR[level(host[m.key])], bold: level(host[m.key]) !== 'normal' },
   ])
   const tones = shown.map(m => level(host[m.key]))
   const tone: Tone = tones.includes('error') ? 'error' : tones.includes('warn') ? 'warn' : 'normal'
