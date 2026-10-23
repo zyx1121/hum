@@ -16,7 +16,7 @@ function nodePoint(agoS: number, value: number, node: string) {
   return { ts: new Date(NOW - agoS * 1000).toISOString(), kind: 'gauge', value, attributes }
 }
 
-// Answers what sensorium's query_metrics would: pve fresh, carrel04 last heard
+// Answers what sensorium's query_metrics would: pve and anvil fresh, carrel04 last heard
 // from 5 minutes ago, the other carrel nodes and furnace fresh. laptop and macmini still report into
 // `devices`, but the band does not list them.
 function series(project: string, metric: string) {
@@ -37,6 +37,10 @@ function series(project: string, metric: string) {
       proxmox_node_blockstat_per: 67,
     }
     return [point(5, v[metric] ?? 0)]
+  }
+  if (project === 'anvil') {
+    if (metric !== 'proxmox_node_cpustat_cpu') return []
+    return [nodePoint(4, 0.21, 'anvil')]
   }
   if (project === 'carrel') {
     if (metric !== 'proxmox_node_cpustat_cpu') return []
@@ -77,13 +81,16 @@ test('the band shows each machine, its load and who is offline', async ($, on) =
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
   await clock.settle()
   expect(asked).toContain('carrel/proxmox_node_cpustat_cpu')
+  expect(asked).toContain('anvil/proxmox_node_cpustat_cpu')
 
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ plugin: 'hum', surface, ...BAND })
     const all = (await ui.findAll({ type: 'Text' })).map(t => t.text).join(' ')
     expect(all).toContain('SPAWNER')
     expect(all.indexOf('SPAWNER')).toBeLessThan(all.indexOf('FURNACE'))
-    expect(all.indexOf('FURNACE')).toBeLessThan(all.indexOf('CARREL01'))
+    expect(all.indexOf('FURNACE')).toBeLessThan(all.indexOf('ANVIL'))
+    expect(all.indexOf('ANVIL')).toBeLessThan(all.indexOf('CARREL01'))
+    expect(all).toContain('CPU 21%') // anvil
     expect(all.indexOf('CARREL03')).toBeLessThan(all.indexOf('CARREL04'))
     expect(all).toContain('CPU 11%') // carrel01, picked out of the shared project
     expect(all).toContain('CPU 13%') // carrel03
@@ -104,7 +111,7 @@ test('the band shows each machine, its load and who is offline', async ($, on) =
 
 test('a second session within the refresh window reuses the stored snapshot', async ($, on) => {
   mock.env(on, { SENSORIUM_ZYX_TOKEN: 'sk_test' })
-  mock.store(on, { 'snap-v6': { fetchedAt: NOW - 1000, hosts: [{ name: 'furnace', ageS: 1, cpu: 0.1, mem: 0.2, disk: 0.3, gpu: null }], error: null } })
+  mock.store(on, { 'snap-v7': { fetchedAt: NOW - 1000, hosts: [{ name: 'furnace', ageS: 1, cpu: 0.1, mem: 0.2, disk: 0.3, gpu: null }], error: null } })
   const clock = mock.clock(on, { now: NOW })
   let fetches = 0
   on('http.fetch', async () => {
