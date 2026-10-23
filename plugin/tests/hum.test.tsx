@@ -90,16 +90,17 @@ test('the band shows each machine, its load and who is offline', async ($, on) =
     expect(all.indexOf('SPAWNER')).toBeLessThan(all.indexOf('FURNACE'))
     expect(all.indexOf('FURNACE')).toBeLessThan(all.indexOf('ANVIL'))
     expect(all.indexOf('ANVIL')).toBeLessThan(all.indexOf('CARREL01'))
-    expect(all).toContain('CPU 21%') // anvil
+    expect(all).toContain('CPU 21') // anvil
     expect(all.indexOf('CARREL03')).toBeLessThan(all.indexOf('CARREL04'))
-    expect(all).toContain('CPU 11%') // carrel01, picked out of the shared project
-    expect(all).toContain('CPU 13%') // carrel03
-    expect(all).toContain('MEM 75%') // spawner memory 48/64
-    expect(all).toContain('DSK 67%') // spawner disk
-    expect(all).toContain('95%') // furnace disk, highlighted
-    expect(all).toContain('GPU 42%') // furnace gpu
+    expect(all).toContain('CPU 11') // carrel01, picked out of the shared project
+    expect(all).toContain('CPU 13') // carrel03
+    expect(all).toContain('MEM 75') // spawner memory 48/64
+    expect(all).toContain('DSK 67') // spawner disk
+    expect(all).toContain('DSK 95') // furnace disk, highlighted
+    expect(all).toContain('GPU 42') // furnace gpu
     expect(all).toContain('4.0K/s') // spawner: 2 + 2 KB/s on nic0 only
     expect(all).toContain('100K/s') // furnace: 100 KB/s
+    expect(all.includes('%')).toBe(false) // the unit is implied
     expect(all.includes('\u{F0EE0}')).toBe(false) // labels, not Nerd Font glyphs
     expect(all.includes('–')).toBe(false) // spawner has no gpu
     expect(all).toContain('5m ago') // carrel04
