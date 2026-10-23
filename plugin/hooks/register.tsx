@@ -9,7 +9,7 @@ const REFRESH_MS = 15_000
 const WINDOW_MS = 90_000
 // Bump when Snapshot's shape or the host list changes: sessions still running
 // an older build keep writing the old snapshot under the old key.
-const STORE_KEY = 'snap-v6'
+const STORE_KEY = 'snap-v7'
 const ONLINE_S = 60
 
 // PVE nodes report through PVE's own OpenTelemetry metric server, one project
@@ -18,11 +18,12 @@ const ONLINE_S = 60
 // to what the band shows.
 const PVE_CLUSTERS = [
   { project: 'pve', nodes: { pve: 'spawner' } },
+  { project: 'anvil', nodes: { anvil: 'anvil' } },
   { project: 'carrel', nodes: { carrel01: 'carrel01', carrel02: 'carrel02', carrel03: 'carrel03', carrel04: 'carrel04' } },
 ]
 const AGENTS = ['furnace']
 // Band order, left to right.
-const ORDER = ['spawner', 'furnace', 'carrel01', 'carrel02', 'carrel03', 'carrel04']
+const ORDER = ['spawner', 'furnace', 'anvil', 'carrel01', 'carrel02', 'carrel03', 'carrel04']
 
 const snap = atom({ plugin: 'hum', key: 'snap' } as const, null)
 
