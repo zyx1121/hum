@@ -9,7 +9,7 @@ const REFRESH_MS = 15_000
 const WINDOW_MS = 90_000
 // Bump when Snapshot's shape or the host list changes: sessions still running
 // an older build keep writing the old snapshot under the old key.
-const STORE_KEY = 'snap-v9'
+const STORE_KEY = 'snap-v10'
 const ONLINE_S = 60
 
 // PVE nodes report through PVE's own OpenTelemetry metric server, one project
@@ -87,7 +87,7 @@ type NodeReading = Host & { cores: number | null; memUsed: number | null; memTot
 
 async function pveNodes($: EngineInterface, token: string, now: number, project: string, nodes: Record<string, string>): Promise<NodeReading[]> {
   const n = Object.keys(nodes).length
-  const [cpu, cores, used, total, disk, rx, tx] = await Promise.all([
+  const [cpu, cores, used, total, disk, rx, tx, temps] = await Promise.all([
     query($, token, project, 'proxmox_node_cpustat_cpu', n * 3),
     query($, token, project, 'proxmox_node_cpustat_cpus', n * 3),
     query($, token, project, 'proxmox_node_memory_memused', n * 3),
@@ -96,11 +96,18 @@ async function pveNodes($: EngineInterface, token: string, now: number, project:
     // A node reports 40 or more interfaces per tick; 3 ticks cover the two newest.
     query($, token, project, 'proxmox_node_network_receive_total', Math.min(1000, n * 200)),
     query($, token, project, 'proxmox_node_network_transmit_total', Math.min(1000, n * 200)),
+    // temp-watch, where a node runs it: a few sensors per minute.
+    query($, token, project, 'hw.temperature', n * 16),
   ])
   // Points come newest first, so the first one per node is its latest reading.
   const of = (points: Point[], node: string) => points.filter(p => p.attributes.node === node)
   return Object.entries(nodes).map(([node, name]) => {
     const [c, k, u, t, d] = [cpu, cores, used, total, disk].map(points => of(points, node)[0])
+    const sensors = new Map<string, Point>()
+    for (const p of temps.filter(p => p.attributes['host.name'] === node)) {
+      const sensor = String(p.attributes.sensor ?? '')
+      if (!sensors.has(sensor)) sensors.set(sensor, p)
+    }
     return {
       name,
       ageS: age(now, c),
@@ -112,8 +119,25 @@ async function pveNodes($: EngineInterface, token: string, now: number, project:
       cores: k?.value ?? null,
       memUsed: u?.value ?? null,
       memTotal: t?.value ?? null,
+      temp: hottest([...sensors.values()]),
     }
   })
+}
+
+// temp-watch's limits per sensor kind; the band warns 5 degrees before one.
+const TEMP_LIMIT: Record<string, number> = { cpu: 85, nvme: 70, hdd: 50 }
+
+// The hottest sensor in degrees, toned by how close any sensor is to its limit.
+function hottest(points: Point[]): Host['temp'] {
+  if (!points.length) return null
+  let tone: Tone = 'normal'
+  for (const p of points) {
+    const limit = TEMP_LIMIT[String(p.attributes.kind)]
+    if (limit == null) continue
+    if (p.value >= limit) tone = 'error'
+    else if (p.value >= limit - 5 && tone === 'normal') tone = 'warn'
+  }
+  return { c: Math.max(...points.map(p => p.value)), tone }
 }
 
 function hostOf({ cores: _c, memUsed: _u, memTotal: _t, ...host }: NodeReading): Host {
@@ -246,7 +270,11 @@ function hostPanel(kit: PanelKit, host: Host): RenderElement {
     { text: `${i ? '  ' : ''}${m.label} `, color: COLOR.label },
     { text: `${Math.round(host[m.key]! * 100)}`, color: TONE_COLOR[level(host[m.key])], bold: level(host[m.key]) !== 'normal' },
   ])
+  if (host.temp) {
+    segs.push({ text: `${segs.length ? '  ' : ''}TMP `, color: COLOR.label }, { text: `${Math.round(host.temp.c)}`, color: TONE_COLOR[host.temp.tone], bold: host.temp.tone !== 'normal' })
+  }
   const tones = shown.map(m => level(host[m.key]))
+  if (host.temp) tones.push(host.temp.tone)
   // A cluster with a node down is at least a warning.
   if (host.nodes && host.nodes.up < host.nodes.total) tones.push('warn')
   const tone: Tone = tones.includes('error') ? 'error' : tones.includes('warn') ? 'warn' : 'normal'

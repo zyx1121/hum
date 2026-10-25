@@ -42,6 +42,14 @@ function series(project: string, metric: string) {
     if (metric !== 'proxmox_node_cpustat_cpu') return []
     return [nodePoint(4, 0.21, 'anvil')]
   }
+  // enderchest: temp-watch reports a cool CPU and an HDD within 5 degrees of its 50 limit;
+  // the older reading of the same HDD must not count.
+  if (project === 'enderchest') {
+    if (metric === 'proxmox_node_cpustat_cpu') return [nodePoint(4, 0.02, 'enderchest')]
+    if (metric !== 'hw.temperature') return []
+    const temp = (agoS: number, value: number, sensor: string, kind: string) => ({ ...point(agoS, value, 'enderchest', { sensor, kind }) })
+    return [temp(10, 41, 'cpu', 'cpu'), temp(10, 47, 'ZW64DW76', 'hdd'), temp(70, 55, 'ZW64DW76', 'hdd')]
+  }
   // carrel: 40 cores each; memory 10 + 20 + 30 of 100 each on the live nodes.
   if (project === 'carrel') {
     const ages: Record<string, number> = { carrel01: 4, carrel02: 5, carrel03: 6, carrel04: 300 }
@@ -99,6 +107,8 @@ test('the band shows each machine, its load and who is offline', async ($, on) =
     expect(all.indexOf('FURNACE')).toBeLessThan(all.indexOf('ANVIL'))
     expect(all.indexOf('ANVIL')).toBeLessThan(all.indexOf('CARREL 3/4'))
     expect(all).toContain('CPU 21') // anvil
+    expect(all).toContain('TMP 47') // enderchest: hottest current sensor, the stale 55 left out
+    expect(all.slice(0, all.indexOf('ANVIL')).includes('TMP')).toBe(false) // only enderchest reports temperatures
     expect(all.includes('CARREL01')).toBe(false) // the cluster is one panel
     expect(all).toContain('CPU 12') // carrel: mean of the live nodes, carrel04's 99 left out
     expect(all).toContain('MEM 20') // carrel: 60 used of 300
@@ -119,7 +129,7 @@ test('the band shows each machine, its load and who is offline', async ($, on) =
 
 test('a second session within the refresh window reuses the stored snapshot', async ($, on) => {
   mock.env(on, { SENSORIUM_ZYX_TOKEN: 'sk_test' })
-  mock.store(on, { 'snap-v9': { fetchedAt: NOW - 1000, hosts: [{ name: 'furnace', ageS: 1, cpu: 0.1, mem: 0.2, disk: 0.3, gpu: null }], error: null } })
+  mock.store(on, { 'snap-v10': { fetchedAt: NOW - 1000, hosts: [{ name: 'furnace', ageS: 1, cpu: 0.1, mem: 0.2, disk: 0.3, gpu: null }], error: null } })
   const clock = mock.clock(on, { now: NOW })
   let fetches = 0
   on('http.fetch', async () => {

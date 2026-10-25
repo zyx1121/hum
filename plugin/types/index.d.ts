@@ -9,6 +9,8 @@ export type Host = {
   gpu: number | null
   /** Received plus sent, bytes per second, over the two newest readings. */
   net: number | null
+  /** Hottest temp-watch sensor in degrees C, toned against its limit; absent where nothing reports. */
+  temp?: { c: number; tone: 'normal' | 'warn' | 'error' | 'dim' } | null
   /** Set on a cluster panel: nodes reporting, out of all its nodes. */
   nodes?: { up: number; total: number }
 }
