@@ -61,6 +61,8 @@ You should see one OTLP JSON payload with this machine's metrics. In this mode, 
 
 Proxmox VE 9.1 and later can skip the agent: its built-in OpenTelemetry metric server reports the node and every guest.
 
+The PVE metric server does not send temperatures. [`deploy/temp-watch`](deploy/temp-watch) adds them: a 60-second timer reads the CPU, NVMe and SATA disk sensors and sends `hw.temperature` with the same endpoint and token.
+
 ## Configuration
 
 | Flag | Env | Sets | Default |
