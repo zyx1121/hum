@@ -63,6 +63,8 @@ chmod +x hum && ./hum -once
 
 Proxmox VE 9.1 以後可以不裝 agent：內建的 OpenTelemetry 指標伺服器會回報節點和所有 guest。
 
+PVE 指標伺服器不送溫度。[`deploy/temp-watch`](deploy/temp-watch) 補上溫度：每 60 秒讀 CPU、NVMe、SATA 硬碟的感測器，用同一個端點和 token 送出 `hw.temperature`。
+
 ## 設定
 
 | 參數 | 環境變數 | 作用 | 預設 |

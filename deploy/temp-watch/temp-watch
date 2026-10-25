@@ -1,0 +1,67 @@
+#!/bin/bash
+# temp-watch: temperatures of this PVE node (CPU packages, NVMe, SATA disks), run every 60 s by temp-watch.timer.
+# Sends OTLP/HTTP JSON metrics (hw.temperature, unit Cel) to the sensorium project of the PVE metric
+# server in /etc/pve/status.cfg (service.name=temp-watch, host.name = the PVE node name), reusing its
+# endpoint and Bearer header. Each point carries its own limit; a reading at or over it also goes out
+# as a WARN log.
+set -u
+
+HOST=$(hostname)
+# Degrees C. AMD's Tctl runs up to 95 by design under load, so it gets its own limit.
+declare -A LIMIT=([coretemp]=85 [k10temp]=90 [nvme]=70 [hdd]=50)
+
+now_ns=$(date +%s%N)
+readings=()   # "sensor|kind|celsius|limit"
+for d in /sys/class/hwmon/hwmon*; do
+  name=$(cat "$d/name")
+  case $name in
+    coretemp)
+      for t in "$d"/temp*_input; do
+        label=$(cat "${t%_input}_label" 2>/dev/null)
+        [[ $label == "Package id "* ]] && readings+=("cpu${label#Package id }|cpu|$(( $(cat "$t") / 1000 ))|${LIMIT[coretemp]}")
+      done ;;
+    k10temp)
+      for t in "$d"/temp*_input; do
+        [ "$(cat "${t%_input}_label" 2>/dev/null)" = "Tctl" ] && readings+=("cpu0|cpu|$(( $(cat "$t") / 1000 ))|${LIMIT[k10temp]}")
+      done ;;
+    nvme)
+      ctrl=$(basename "$(readlink -f "$d/device")")
+      readings+=("${ctrl:-nvme}|nvme|$(( $(cat "$d/temp1_input") / 1000 ))|${LIMIT[nvme]}") ;;
+    drivetemp)
+      # Name the disk by its serial, so a reshuffled sdX keeps its history.
+      blk=$(ls "$d/device/block" 2>/dev/null | head -1)
+      serial=$(lsblk -dno SERIAL "/dev/$blk" 2>/dev/null)
+      readings+=("${serial:-$blk}|hdd|$(( $(cat "$d/temp1_input") / 1000 ))|${LIMIT[hdd]}") ;;
+  esac
+done
+
+# journald copy, so `journalctl -u temp-watch` works even when sensorium is down
+echo "${readings[*]}"
+[ "${#readings[@]}" -eq 0 ] && exit 0
+
+cfg() { sed -n "/^opentelemetry:/,/^\$/s/^\s*$1\s\+//p" /etc/pve/status.cfg | head -1; }
+proto=$(cfg otel-protocol) server=$(cfg server) port=$(cfg port)
+hdr=$(cfg otel-headers | base64 -d 2>/dev/null | sed -n 's/.*"Authorization" *: *"\([^"]*\)".*/\1/p')
+[ -z "$hdr" ] || [ -z "$server" ] && { echo "no sensorium metric server in status.cfg"; exit 0; }
+ENDPOINT="${proto:-https}://$server:${port:-443}"
+
+res="{\"attributes\":[{\"key\":\"service.name\",\"value\":{\"stringValue\":\"temp-watch\"}},{\"key\":\"host.name\",\"value\":{\"stringValue\":\"$HOST\"}}]}"
+points="" recs=""
+for r in "${readings[@]}"; do
+  IFS="|" read -r sensor kind c limit <<< "$r"
+  attrs="{\"key\":\"host.name\",\"value\":{\"stringValue\":\"$HOST\"}},{\"key\":\"sensor\",\"value\":{\"stringValue\":\"$sensor\"}},{\"key\":\"kind\",\"value\":{\"stringValue\":\"$kind\"}},{\"key\":\"limit\",\"value\":{\"intValue\":\"$limit\"}}"
+  points+="{\"timeUnixNano\":\"$now_ns\",\"asDouble\":$c,\"attributes\":[$attrs]},"
+  if [ "$c" -ge "$limit" ]; then
+    echo "WARN $sensor ${c}C >= ${limit}C"
+    recs+="{\"timeUnixNano\":\"$now_ns\",\"severityNumber\":13,\"severityText\":\"WARN\",\"body\":{\"stringValue\":\"$sensor ${c}C at or over ${limit}C\"},\"attributes\":[$attrs]},"
+  fi
+done
+
+curl -s -m 5 -o /dev/null -w 'metrics %{http_code}\n' -X POST "$ENDPOINT/v1/metrics" \
+  -H "Authorization: $hdr" -H 'Content-Type: application/json' \
+  -d "{\"resourceMetrics\":[{\"resource\":$res,\"scopeMetrics\":[{\"scope\":{\"name\":\"temp-watch\"},\"metrics\":[{\"name\":\"hw.temperature\",\"unit\":\"Cel\",\"gauge\":{\"dataPoints\":[${points%,}]}}]}]}]}"
+if [ -n "$recs" ]; then
+  curl -s -m 5 -o /dev/null -w 'logs %{http_code}\n' -X POST "$ENDPOINT/v1/logs" \
+    -H "Authorization: $hdr" -H 'Content-Type: application/json' \
+    -d "{\"resourceLogs\":[{\"resource\":$res,\"scopeLogs\":[{\"scope\":{\"name\":\"temp-watch\"},\"logRecords\":[${recs%,}]}]}]}"
+fi
