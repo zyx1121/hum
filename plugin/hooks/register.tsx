@@ -9,7 +9,7 @@ const REFRESH_MS = 15_000
 const WINDOW_MS = 90_000
 // Bump when Snapshot's shape or the host list changes: sessions still running
 // an older build keep writing the old snapshot under the old key.
-const STORE_KEY = 'snap-v10'
+const STORE_KEY = 'snap-v11'
 const ONLINE_S = 60
 
 // PVE nodes report through PVE's own OpenTelemetry metric server, one project
@@ -124,7 +124,8 @@ async function pveNodes($: EngineInterface, token: string, now: number, project:
   })
 }
 
-// temp-watch's limits per sensor kind; the band warns 5 degrees before one.
+// temp-watch sends each sensor's limit with the point; these cover points sent
+// without one. The band warns 5 degrees before a limit.
 const TEMP_LIMIT: Record<string, number> = { cpu: 85, nvme: 70, hdd: 50 }
 
 // The hottest sensor in degrees, toned by how close any sensor is to its limit.
@@ -132,7 +133,7 @@ function hottest(points: Point[]): Host['temp'] {
   if (!points.length) return null
   let tone: Tone = 'normal'
   for (const p of points) {
-    const limit = TEMP_LIMIT[String(p.attributes.kind)]
+    const limit = Number(p.attributes.limit) || TEMP_LIMIT[String(p.attributes.kind)]
     if (limit == null) continue
     if (p.value >= limit) tone = 'error'
     else if (p.value >= limit - 5 && tone === 'normal') tone = 'warn'
@@ -164,8 +165,19 @@ function clusterHost(name: string, readings: NodeReading[]): Host {
     disk: disks.length ? sum(disks)! / disks.length : null,
     gpu: null,
     net: sum(live.map(r => r.net)),
+    temp: hottestNode(live.map(r => r.temp)),
     nodes,
   }
+}
+
+const TONE_RANK: Record<Tone, number> = { dim: 0, normal: 1, warn: 2, error: 3 }
+
+// The hottest node's degrees, toned by the worst node.
+function hottestNode(temps: Host['temp'][]): Host['temp'] {
+  const known = temps.filter((t): t is NonNullable<Host['temp']> => t != null)
+  if (!known.length) return null
+  const tone = known.map(t => t.tone).reduce((a, b) => (TONE_RANK[b] > TONE_RANK[a] ? b : a))
+  return { c: Math.max(...known.map(t => t.c)), tone }
 }
 
 async function pveHosts($: EngineInterface, token: string, now: number, c: (typeof PVE_CLUSTERS)[number]): Promise<Host[]> {
