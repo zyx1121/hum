@@ -9,6 +9,8 @@ export type Host = {
   gpu: number | null
   /** Received plus sent, bytes per second, over the two newest readings. */
   net: number | null
+  /** Set on a cluster panel: nodes reporting, out of all its nodes. */
+  nodes?: { up: number; total: number }
 }
 
 export type Snapshot = { fetchedAt: number; hosts: Host[]; error: string | null }
