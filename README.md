@@ -63,6 +63,8 @@ Proxmox VE 9.1 and later can skip the agent: its built-in OpenTelemetry metric s
 
 The PVE metric server does not send temperatures. [`deploy/temp-watch`](deploy/temp-watch) adds them: a 60-second timer reads the CPU, NVMe and SATA disk sensors and sends `hw.temperature` with the same endpoint and token.
 
+[`deploy/disk-watch`](deploy/disk-watch) reports storage health every 10 minutes: ZFS pool health, capacity and scrub age, SMART verdict and bad sectors per disk, and the age of the newest Proxmox Backup Server snapshot per guest. Each problem also goes out as a WARN log.
+
 ## Configuration
 
 | Flag | Env | Sets | Default |
