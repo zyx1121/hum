@@ -65,6 +65,8 @@ Proxmox VE 9.1 以後可以不裝 agent：內建的 OpenTelemetry 指標伺服�
 
 PVE 指標伺服器不送溫度。[`deploy/temp-watch`](deploy/temp-watch) 補上溫度：每 60 秒讀 CPU、NVMe、SATA 硬碟的感測器，用同一個端點和 token 送出 `hw.temperature`。
 
+[`deploy/disk-watch`](deploy/disk-watch) 每 10 分鐘回報儲存健康：ZFS pool 狀態、用量、距上次 scrub 的天數，每顆硬碟的 SMART 結果與壞軌數，以及每台 guest 最新一份 Proxmox Backup Server 備份的時間。每個問題也會送一筆 WARN log。
+
 ## 設定
 
 | 參數 | 環境變數 | 作用 | 預設 |

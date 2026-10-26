@@ -1,0 +1,118 @@
+#!/bin/bash
+# disk-watch: storage health of this PVE node, run every 10 min by disk-watch.timer.
+# Reports ZFS pools (health, capacity, days since the last scrub), SMART per disk (verdict, bad
+# sectors, failed self-tests) and, on a node that runs Proxmox Backup Server, the age of the newest
+# backup of each guest. Sends OTLP/HTTP JSON to the same sensorium project as temp-watch
+# (service.name=disk-watch); every problem also goes out as a WARN log.
+set -u
+
+HOST=$(hostname)
+CAP_LIMIT=80          # pool capacity, percent
+SCRUB_LIMIT_DAYS=40   # zfsutils scrubs on the 2nd Sunday of each month
+BACKUP_LIMIT_H=36     # backup jobs run daily
+
+now=$(date +%s) now_ns=$(date +%s%N)
+metrics=()   # "name|unit|value|attrs json"
+warns=()     # "message|attrs json"
+attr() { printf '{"key":"%s","value":{"stringValue":"%s"}}' "$1" "$2"; }
+host_attr=$(attr host.name "$HOST")
+
+# ZFS pools
+while IFS=$'\t' read -r pool health cap; do
+  [ -z "$pool" ] && continue
+  a="$host_attr,$(attr pool "$pool")"
+  ok=1; [ "$health" = ONLINE ] || { ok=0; warns+=("pool $pool is $health|$a"); }
+  metrics+=("zfs.pool.healthy|1|$ok|$a" "zfs.pool.capacity|%|${cap%\%}|$a")
+  [ "${cap%\%}" -ge "$CAP_LIMIT" ] && warns+=("pool $pool at $cap|$a")
+  status=$(zpool status "$pool")
+  grep -q '^errors: No known data errors' <<< "$status" || warns+=("pool $pool reports data errors|$a")
+  # "scan: scrub repaired 0B in 00:01:02 with 0 errors on Sun Oct 12 00:25:03 2026"
+  last=$(sed -n 's/.*scrub repaired.* on \(.*\)$/\1/p' <<< "$status")
+  if [ -n "$last" ]; then
+    days=$(( (now - $(date -d "$last" +%s)) / 86400 ))
+    metrics+=("zfs.pool.scrub_age|d|$days|$a")
+    [ "$days" -gt "$SCRUB_LIMIT_DAYS" ] && warns+=("pool $pool last scrubbed $days days ago|$a")
+    grep -q 'scrub repaired 0B .* with 0 errors' <<< "$status" || warns+=("pool $pool: last scrub found errors|$a")
+  fi
+done < <(zpool list -H -o name,health,cap 2>/dev/null)
+
+# SMART. Disks behind a RAID controller (anvil's PERC) or without SMART report nothing.
+for dev in /dev/sd? /dev/nvme?; do
+  [ -e "$dev" ] || continue
+  out=$(smartctl -n standby -H -A "$dev" 2>/dev/null)
+  verdict=$(sed -n 's/.*overall-health self-assessment test result: \(.*\)/\1/p; s/^SMART Health Status: \(.*\)/\1/p' <<< "$out")
+  [ -z "$verdict" ] && continue
+  serial=$(lsblk -dno SERIAL "$dev" 2>/dev/null || lsblk -dno SERIAL "${dev}n1" 2>/dev/null)
+  a="$host_attr,$(attr disk "${serial:-${dev#/dev/}}")"
+  ok=1; [[ $verdict == PASSED || $verdict == OK ]] || { ok=0; warns+=("disk ${serial:-$dev} SMART $verdict|$a"); }
+  if [[ $dev == /dev/nvme* ]]; then
+    bad=$(sed -n 's/^Media and Data Integrity Errors: *\([0-9,]*\).*/\1/p' <<< "$out" | tr -d ,)
+    used=$(sed -n 's/^Percentage Used: *\([0-9]*\)%.*/\1/p' <<< "$out")
+    [ -n "$used" ] && metrics+=("disk.wear|%|$used|$a")
+  else
+    # Reallocated, pending and offline-uncorrectable sectors
+    bad=$(awk '$1==5||$1==197||$1==198{s+=$10} END{print s+0}' <<< "$out")
+  fi
+  bad=${bad:-0}
+  failed=$(smartctl -n standby -l selftest "$dev" 2>/dev/null | grep -ci 'failure')
+  metrics+=("disk.smart.healthy|1|$ok|$a" "disk.bad_sectors|1|$bad|$a")
+  [ "$bad" -gt 0 ] && warns+=("disk ${serial:-$dev} has $bad bad sectors|$a")
+  [ "$failed" -gt 0 ] && warns+=("disk ${serial:-$dev} failed $failed self-tests|$a")
+done
+
+# PBS: newest snapshot per backup group (<type>/<id>/<RFC 3339 time> under each datastore path).
+# A guest that was deleted keeps warning until its group is removed from the datastore.
+if [ -f /etc/proxmox-backup/datastore.cfg ]; then
+  while read -r store path; do
+    for g in "$path"/{vm,ct}/*; do
+      [ -d "$g" ] || continue
+      newest=$(ls -1 "$g" | grep -E '^[0-9]{4}-' | sort | tail -1)
+      [ -z "$newest" ] && continue
+      h=$(( (now - $(date -d "$newest" +%s)) / 3600 ))
+      a="$host_attr,$(attr store "$store"),$(attr group "${g#"$path"/}")"
+      metrics+=("backup.age|h|$h|$a")
+      [ "$h" -gt "$BACKUP_LIMIT_H" ] && warns+=("backup ${g#"$path"/} is $h hours old|$a")
+    done
+  done < <(awk '/^datastore:/{s=$2} /^[ \t]*path /{print s, $2}' /etc/proxmox-backup/datastore.cfg)
+fi
+
+# journald copy, so `journalctl -u disk-watch` works even when sensorium is down
+for m in "${metrics[@]}"; do
+  IFS='|' read -r n u v a <<< "$m"
+  echo "$n $(grep -o 'stringValue":"[^"]*' <<< "$a" | sed 1d | cut -d'"' -f3 | paste -sd/) $v${u#1}"
+done
+for w in "${warns[@]}"; do echo "WARN ${w%%|*}"; done
+[ "${#metrics[@]}" -eq 0 ] && exit 0
+
+cfg() { sed -n "/^opentelemetry:/,/^\$/s/^\s*$1\s\+//p" /etc/pve/status.cfg | head -1; }
+proto=$(cfg otel-protocol) server=$(cfg server) port=$(cfg port)
+hdr=$(cfg otel-headers | base64 -d 2>/dev/null | sed -n 's/.*"Authorization" *: *"\([^"]*\)".*/\1/p')
+[ -z "$hdr" ] || [ -z "$server" ] && { echo "no sensorium metric server in status.cfg"; exit 0; }
+ENDPOINT="${proto:-https}://$server:${port:-443}"
+
+res="{\"attributes\":[$(attr service.name disk-watch),$host_attr]}"
+# One OTLP metric per name, its points in the order collected
+body=""
+for name in $(printf '%s\n' "${metrics[@]}" | cut -d'|' -f1 | awk '!seen[$0]++'); do
+  points="" unit=""
+  for m in "${metrics[@]}"; do
+    IFS='|' read -r n u v a <<< "$m"
+    [ "$n" = "$name" ] || continue
+    unit=$u points+="{\"timeUnixNano\":\"$now_ns\",\"asDouble\":$v,\"attributes\":[$a]},"
+  done
+  body+="{\"name\":\"$name\",\"unit\":\"$unit\",\"gauge\":{\"dataPoints\":[${points%,}]}},"
+done
+curl -s -m 5 -o /dev/null -w 'metrics %{http_code}\n' -X POST "$ENDPOINT/v1/metrics" \
+  -H "Authorization: $hdr" -H 'Content-Type: application/json' \
+  -d "{\"resourceMetrics\":[{\"resource\":$res,\"scopeMetrics\":[{\"scope\":{\"name\":\"disk-watch\"},\"metrics\":[${body%,}]}]}]}"
+
+if [ "${#warns[@]}" -gt 0 ]; then
+  recs=""
+  for w in "${warns[@]}"; do
+    IFS='|' read -r msg a <<< "$w"
+    recs+="{\"timeUnixNano\":\"$now_ns\",\"severityNumber\":13,\"severityText\":\"WARN\",\"body\":{\"stringValue\":\"$msg\"},\"attributes\":[$a]},"
+  done
+  curl -s -m 5 -o /dev/null -w 'logs %{http_code}\n' -X POST "$ENDPOINT/v1/logs" \
+    -H "Authorization: $hdr" -H 'Content-Type: application/json' \
+    -d "{\"resourceLogs\":[{\"resource\":$res,\"scopeLogs\":[{\"scope\":{\"name\":\"disk-watch\"},\"logRecords\":[${recs%,}]}]}]}"
+fi
