@@ -109,11 +109,12 @@ test('the band shows each machine, its load and who is offline', async ($, on) =
     const all = (await ui.findAll({ type: 'Text' })).map(t => t.text).join(' ')
     expect(all).toContain('SPAWNER')
     expect(all.indexOf('SPAWNER')).toBeLessThan(all.indexOf('FURNACE'))
-    expect(all.indexOf('FURNACE')).toBeLessThan(all.indexOf('ANVIL'))
+    expect(all.indexOf('FURNACE')).toBeLessThan(all.indexOf('ENDERCHEST'))
+    expect(all.indexOf('ENDERCHEST')).toBeLessThan(all.indexOf('ANVIL'))
     expect(all.indexOf('ANVIL')).toBeLessThan(all.indexOf('CARREL 3/4'))
     expect(all).toContain('CPU 21') // anvil
     expect(all).toContain('TMP 47') // enderchest: hottest current sensor, the stale 55 left out
-    expect(all.slice(0, all.indexOf('ANVIL')).includes('TMP')).toBe(false) // spawner, furnace, anvil send none here
+    expect(all.slice(0, all.indexOf('FURNACE')).includes('TMP')).toBe(false) // spawner and furnace send none here
     expect(all).toContain('TMP 58') // carrel: hottest live node, carrel04's stale 99 left out
     expect(all.includes('CARREL01')).toBe(false) // the cluster is one panel
     expect(all).toContain('CPU 12') // carrel: mean of the live nodes, carrel04's 99 left out
@@ -135,7 +136,7 @@ test('the band shows each machine, its load and who is offline', async ($, on) =
 
 test('a second session within the refresh window reuses the stored snapshot', async ($, on) => {
   mock.env(on, { SENSORIUM_ZYX_TOKEN: 'sk_test' })
-  mock.store(on, { 'snap-v11': { fetchedAt: NOW - 1000, hosts: [{ name: 'furnace', ageS: 1, cpu: 0.1, mem: 0.2, disk: 0.3, gpu: null }], error: null } })
+  mock.store(on, { 'snap-v12': { fetchedAt: NOW - 1000, hosts: [{ name: 'furnace', ageS: 1, cpu: 0.1, mem: 0.2, disk: 0.3, gpu: null }], error: null } })
   const clock = mock.clock(on, { now: NOW })
   let fetches = 0
   on('http.fetch', async () => {
