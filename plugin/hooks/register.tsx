@@ -9,7 +9,7 @@ const REFRESH_MS = 15_000
 const WINDOW_MS = 90_000
 // Bump when Snapshot's shape or the host list changes: sessions still running
 // an older build keep writing the old snapshot under the old key.
-const STORE_KEY = 'snap-v12'
+const STORE_KEY = 'snap-v13'
 const ONLINE_S = 60
 
 // PVE nodes report through PVE's own OpenTelemetry metric server, one project
@@ -17,7 +17,7 @@ const ONLINE_S = 60
 // hum agent into the shared `devices` project. `nodes` maps the PVE node name
 // to what the band shows; a `cluster` name folds its nodes into one panel.
 const PVE_CLUSTERS: { project: string; nodes: Record<string, string>; cluster?: string }[] = [
-  { project: 'pve', nodes: { pve: 'spawner' } },
+  { project: 'spawner', nodes: { pve: 'spawner' } },
   { project: 'anvil', nodes: { anvil: 'anvil' } },
   { project: 'enderchest', nodes: { enderchest: 'enderchest' } },
   { project: 'carrel', cluster: 'carrel', nodes: { carrel01: 'carrel01', carrel02: 'carrel02', carrel03: 'carrel03', carrel04: 'carrel04' } },
