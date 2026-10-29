@@ -21,7 +21,7 @@ function nodePoint(agoS: number, value: number, node: string) {
 // `devices`, but the band does not list them.
 function series(project: string, metric: string) {
   // spawner: nic0 moves 20 KB in 10 s each way; the bridge must not count.
-  if (project === 'pve' && metric.startsWith('proxmox_node_network_')) {
+  if (project === 'spawner' && metric.startsWith('proxmox_node_network_')) {
     return [
       point(5, 120_000, undefined, { device: 'nic0' }),
       point(5, 9_000_000, undefined, { device: 'vmbr0' }),
@@ -29,7 +29,7 @@ function series(project: string, metric: string) {
       point(15, 1_000, undefined, { device: 'vmbr0' }),
     ]
   }
-  if (project === 'pve') {
+  if (project === 'spawner') {
     const v: Record<string, number> = {
       proxmox_node_cpustat_cpu: 0.03,
       proxmox_node_memory_memused: 48,
@@ -136,7 +136,7 @@ test('the band shows each machine, its load and who is offline', async ($, on) =
 
 test('a second session within the refresh window reuses the stored snapshot', async ($, on) => {
   mock.env(on, { SENSORIUM_ZYX_TOKEN: 'sk_test' })
-  mock.store(on, { 'snap-v12': { fetchedAt: NOW - 1000, hosts: [{ name: 'furnace', ageS: 1, cpu: 0.1, mem: 0.2, disk: 0.3, gpu: null }], error: null } })
+  mock.store(on, { 'snap-v13': { fetchedAt: NOW - 1000, hosts: [{ name: 'furnace', ageS: 1, cpu: 0.1, mem: 0.2, disk: 0.3, gpu: null }], error: null } })
   const clock = mock.clock(on, { now: NOW })
   let fetches = 0
   on('http.fetch', async () => {
