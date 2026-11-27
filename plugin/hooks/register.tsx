@@ -9,18 +9,20 @@ const REFRESH_MS = 15_000
 const WINDOW_MS = 90_000
 // Bump when Snapshot's shape or the host list changes: sessions still running
 // an older build keep writing the old snapshot under the old key.
-const STORE_KEY = 'snap-v13'
+const STORE_KEY = 'snap-v14'
 const ONLINE_S = 60
 
 // PVE nodes report through PVE's own OpenTelemetry metric server, one project
 // per cluster, each point tagged with its `node`; the other machines run the
 // hum agent into the shared `devices` project. `nodes` maps the PVE node name
 // to what the band shows; a `cluster` name folds its nodes into one panel.
-const PVE_CLUSTERS: { project: string; nodes: Record<string, string>; cluster?: string }[] = [
-  { project: 'spawner', nodes: { pve: 'spawner' } },
-  { project: 'anvil', nodes: { anvil: 'anvil' } },
-  { project: 'enderchest', nodes: { enderchest: 'enderchest' } },
-  { project: 'carrel', cluster: 'carrel', nodes: { carrel01: 'carrel01', carrel02: 'carrel02', carrel03: 'carrel03', carrel04: 'carrel04' } },
+// `storage` is the PVE storage DSK shows: where the guests (or, on the NAS,
+// the backups) live, not the small root disk.
+const PVE_CLUSTERS: { project: string; storage: string; nodes: Record<string, string>; cluster?: string }[] = [
+  { project: 'spawner', storage: 'local-lvm', nodes: { pve: 'spawner' } },
+  { project: 'anvil', storage: 'local-lvm', nodes: { anvil: 'anvil' } },
+  { project: 'enderchest', storage: 'enderchest', nodes: { enderchest: 'enderchest' } },
+  { project: 'carrel', storage: 'local-zfs', cluster: 'carrel', nodes: { carrel01: 'carrel01', carrel02: 'carrel02', carrel03: 'carrel03', carrel04: 'carrel04' } },
 ]
 const AGENTS = ['furnace']
 // Band order, left to right.
@@ -83,16 +85,18 @@ function age(now: number, p: Point | undefined): number | null {
   return p ? Math.max(0, Math.round((now - Date.parse(p.ts)) / 1000)) : null
 }
 
-type NodeReading = Host & { cores: number | null; memUsed: number | null; memTotal: number | null }
+type NodeReading = Host & { cores: number | null; memUsed: number | null; memTotal: number | null; diskUsed: number | null; diskTotal: number | null }
 
-async function pveNodes($: EngineInterface, token: string, now: number, project: string, nodes: Record<string, string>): Promise<NodeReading[]> {
+async function pveNodes($: EngineInterface, token: string, now: number, project: string, storage: string, nodes: Record<string, string>): Promise<NodeReading[]> {
   const n = Object.keys(nodes).length
-  const [cpu, cores, used, total, disk, rx, tx, temps] = await Promise.all([
+  const [cpu, cores, used, total, stUsed, stTotal, rx, tx, temps] = await Promise.all([
     query($, token, project, 'proxmox_node_cpustat_cpu', n * 3),
     query($, token, project, 'proxmox_node_cpustat_cpus', n * 3),
     query($, token, project, 'proxmox_node_memory_memused', n * 3),
     query($, token, project, 'proxmox_node_memory_memtotal', n * 3),
-    query($, token, project, 'proxmox_node_blockstat_per', n * 3),
+    // Every storage of every node, each tick; 3 ticks of up to 10 storages.
+    query($, token, project, 'proxmox_storage_used', Math.min(1000, n * 30)),
+    query($, token, project, 'proxmox_storage_total', Math.min(1000, n * 30)),
     // A node reports 40 or more interfaces per tick; 3 ticks cover the two newest.
     query($, token, project, 'proxmox_node_network_receive_total', Math.min(1000, n * 200)),
     query($, token, project, 'proxmox_node_network_transmit_total', Math.min(1000, n * 200)),
@@ -102,7 +106,8 @@ async function pveNodes($: EngineInterface, token: string, now: number, project:
   // Points come newest first, so the first one per node is its latest reading.
   const of = (points: Point[], node: string) => points.filter(p => p.attributes.node === node)
   return Object.entries(nodes).map(([node, name]) => {
-    const [c, k, u, t, d] = [cpu, cores, used, total, disk].map(points => of(points, node)[0])
+    const [c, k, u, t] = [cpu, cores, used, total].map(points => of(points, node)[0])
+    const [du, dt] = [stUsed, stTotal].map(points => of(points, node).find(p => p.attributes.storage === storage))
     const sensors = new Map<string, Point>()
     for (const p of temps.filter(p => p.attributes['host.name'] === node)) {
       const sensor = String(p.attributes.sensor ?? '')
@@ -113,12 +118,14 @@ async function pveNodes($: EngineInterface, token: string, now: number, project:
       ageS: age(now, c),
       cpu: c?.value ?? null,
       mem: u && t?.value ? u.value / t.value : null,
-      disk: d ? d.value / 100 : null,
+      disk: du && dt?.value ? du.value / dt.value : null,
       gpu: null,
       net: sum([nicRate(of(rx, node)), nicRate(of(tx, node))]),
       cores: k?.value ?? null,
       memUsed: u?.value ?? null,
       memTotal: t?.value ?? null,
+      diskUsed: du?.value ?? null,
+      diskTotal: dt?.value ?? null,
       temp: hottest([...sensors.values()]),
     }
   })
@@ -141,13 +148,12 @@ function hottest(points: Point[]): Host['temp'] {
   return { c: Math.max(...points.map(p => p.value)), tone }
 }
 
-function hostOf({ cores: _c, memUsed: _u, memTotal: _t, ...host }: NodeReading): Host {
+function hostOf({ cores: _c, memUsed: _u, memTotal: _t, diskUsed: _du, diskTotal: _dt, ...host }: NodeReading): Host {
   return host
 }
 
 // The whole cluster as one machine, over the nodes that are reporting: CPU
-// weighted by cores, memory as total used over total, disk as the mean of the
-// nodes' root disks, network summed.
+// weighted by cores, memory and disk as total used over total, network summed.
 function clusterHost(name: string, readings: NodeReading[]): Host {
   const live = readings.filter(r => r.ageS !== null && r.ageS <= ONLINE_S)
   const ages = readings.map(r => r.ageS).filter((a): a is number => a !== null)
@@ -156,13 +162,13 @@ function clusterHost(name: string, readings: NodeReading[]): Host {
   const cpus = live.filter(r => r.cpu != null)
   const weight = sum(cpus.map(r => r.cores ?? 1))
   const mems = live.filter(r => r.memUsed != null && r.memTotal)
-  const disks = live.map(r => r.disk).filter((d): d is number => d != null)
+  const disks = live.filter(r => r.diskUsed != null && r.diskTotal)
   return {
     name,
     ageS: Math.min(...live.map(r => r.ageS!)),
     cpu: weight ? sum(cpus.map(r => r.cpu! * (r.cores ?? 1)))! / weight : null,
     mem: mems.length ? sum(mems.map(r => r.memUsed))! / sum(mems.map(r => r.memTotal))! : null,
-    disk: disks.length ? sum(disks)! / disks.length : null,
+    disk: disks.length ? sum(disks.map(r => r.diskUsed))! / sum(disks.map(r => r.diskTotal))! : null,
     gpu: null,
     net: sum(live.map(r => r.net)),
     temp: hottestNode(live.map(r => r.temp)),
@@ -181,7 +187,7 @@ function hottestNode(temps: Host['temp'][]): Host['temp'] {
 }
 
 async function pveHosts($: EngineInterface, token: string, now: number, c: (typeof PVE_CLUSTERS)[number]): Promise<Host[]> {
-  const readings = await pveNodes($, token, now, c.project, c.nodes)
+  const readings = await pveNodes($, token, now, c.project, c.storage, c.nodes)
   return c.cluster ? [clusterHost(c.cluster, readings)] : readings.map(hostOf)
 }
 
