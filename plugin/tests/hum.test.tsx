@@ -34,7 +34,16 @@ function series(project: string, metric: string) {
       proxmox_node_cpustat_cpu: 0.03,
       proxmox_node_memory_memused: 48,
       proxmox_node_memory_memtotal: 64,
-      proxmox_node_blockstat_per: 67,
+      proxmox_node_blockstat_per: 19,
+    }
+    // DSK reads local-lvm (67 of 100), not the root disk or the backup storage.
+    if (metric === 'proxmox_storage_used' || metric === 'proxmox_storage_total') {
+      const used = metric === 'proxmox_storage_used'
+      return [
+        point(5, used ? 19 : 100, undefined, { storage: 'local' }),
+        point(5, used ? 67 : 100, undefined, { storage: 'local-lvm' }),
+        point(5, used ? 12 : 100, undefined, { storage: 'enderchest' }),
+      ]
     }
     return [point(5, v[metric] ?? 0)]
   }
@@ -63,6 +72,14 @@ function series(project: string, metric: string) {
     if (metric === 'hw.temperature') {
       const temp = (node: string, value: number) => point(ages[node], value, node, { sensor: 'cpu0', kind: 'cpu', limit: '60' })
       return [temp('carrel01', 40), temp('carrel02', 58), temp('carrel04', 99)]
+    }
+    // local-zfs: 150 + 300 + 450 of 1000 each on the live nodes (30%); carrel04's 900 is stale.
+    if (metric === 'proxmox_storage_used' || metric === 'proxmox_storage_total') {
+      const used: Record<string, number> = { carrel01: 150, carrel02: 300, carrel03: 450, carrel04: 900 }
+      return Object.keys(ages).flatMap(node => [
+        { ...nodePoint(ages[node], metric === 'proxmox_storage_used' ? used[node] : 1000, node), attributes: { node, storage: 'local-zfs' } },
+        { ...nodePoint(ages[node], metric === 'proxmox_storage_used' ? 1 : 1000, node), attributes: { node, storage: 'local' } },
+      ])
     }
     if (!v[metric]) return []
     return Object.entries(v[metric]).map(([node, value]) => nodePoint(ages[node], value, node))
@@ -120,7 +137,8 @@ test('the band shows each machine, its load and who is offline', async ($, on) =
     expect(all).toContain('CPU 12') // carrel: mean of the live nodes, carrel04's 99 left out
     expect(all).toContain('MEM 20') // carrel: 60 used of 300
     expect(all).toContain('MEM 75') // spawner memory 48/64
-    expect(all).toContain('DSK 67') // spawner disk
+    expect(all).toContain('DSK 67') // spawner: local-lvm, not the root disk
+    expect(all).toContain('DSK 30') // carrel: 900 used of 3000 on local-zfs
     expect(all).toContain('DSK 95') // furnace disk, highlighted
     expect(all).toContain('GPU 42') // furnace gpu
     expect(all).toContain('4.0K/s') // spawner: 2 + 2 KB/s on nic0 only
@@ -136,7 +154,7 @@ test('the band shows each machine, its load and who is offline', async ($, on) =
 
 test('a second session within the refresh window reuses the stored snapshot', async ($, on) => {
   mock.env(on, { SENSORIUM_ZYX_TOKEN: 'sk_test' })
-  mock.store(on, { 'snap-v13': { fetchedAt: NOW - 1000, hosts: [{ name: 'furnace', ageS: 1, cpu: 0.1, mem: 0.2, disk: 0.3, gpu: null }], error: null } })
+  mock.store(on, { 'snap-v14': { fetchedAt: NOW - 1000, hosts: [{ name: 'furnace', ageS: 1, cpu: 0.1, mem: 0.2, disk: 0.3, gpu: null }], error: null } })
   const clock = mock.clock(on, { now: NOW })
   let fetches = 0
   on('http.fetch', async () => {
